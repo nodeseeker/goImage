@@ -2,140 +2,165 @@
 
 基于 Go 语言开发的图片托管服务，使用 Telegram 作为存储后端。
 
-## 安装要求
+## 前置准备
 
-- 使用Systemd的Linux系统
-- Telegram 频道和 Bot
+1. Telegram 准备工作：
+   - 创建 Telegram Bot（通过 @BotFather）
+   - 记录获取的 Bot Token
+   - 创建一个频道用于存储图片
+   - 将 Bot 添加为频道管理员
+   - 获取频道的 Chat ID（可通过 @getidsbot 获取）
 
+2. 系统要求：
+   - 使用 Systemd 的 Linux 系统
+   - 已安装并配置 Nginx
+   - 域名已配置 SSL 证书（必需）
 
+## 安装步骤
 
-## 配置文件说明
+1. 创建服务目录：
+```bash
+sudo mkdir -p /opt/imagehosting
+cd /opt/imagehosting
+```
 
-配置文件位于 `/opt/imagehosting/config.json`
+2. 下载并解压程序：
+   从 [releases页面](https://github.com/nodeseeker/goImage/releases) 下载最新版本
+```bash
+unzip goImage.zip
+```
+解压后的目录结构：
+```
+/opt/imagehosting/imagehosting
+/opt/imagehosting/config.json
+/opt/imagehosting/static/favicon.ico
+/opt/imagehosting/static/robots.txt
+/opt/imagehosting/templates/home.html
+/opt/imagehosting/templates/login.html
+/opt/imagehosting/templates/upload.html
+/opt/imagehosting/templates/admin.html
+```
+
+3. 设置权限：
+```bash
+sudo chown -R root:root /opt/imagehosting
+sudo chmod 755 /opt/imagehosting/imagehosting
+```
+
+## 配置说明
+
+### 1. 程序配置文件
+
+编辑 `/opt/imagehosting/config.json`，示例如下：
 
 ```json
 {
     "telegram": {
-        "token": "your-bot-token",
-        "chatId": -your-chat-id
+        "token": "1234567890:ABCDEFG_ab1-asdfghjkl12345",
+        "chatId": -123456789
     },
     "admin": {
-        "username": "admin-username",
-        "password": "admin-password"
+        "username": "nodeseeker",
+        "password": "nodeseeker@123456"
     },
     "site": {
-        "name": "站点名称",
+        "name": "NodeSeek",
         "maxFileSize": 10,
-        "port": 8080,
-        "host": "0.0.0.0"
+        "port": 18080,
+        "host": "127.0.0.1"
     }
 }
-
-详细说明如下
 ```
-telegram:
-    - token: 替换为您的Telegram Bot Token
-    - chatId: 替换为您的Telegram Chat ID
-admin:
-    - username: 设置管理员用户名
-    - password: 设置管理员密码
-site: 
-    - name: 设置您的网站名称
-    - maxFileSize: 最大文件上传大小（MB）
-    - port: 服务运行端口（默认18080）
-    - host: 服务监听地址（127.0.0.1监听本地，0.0.0.0监听所有IP）
-```
+详细的说明如下：
+- `telegram.token`：电报机器人的Bot Token
+- `telegram.chatId`：频道的Chat ID
+- `admin.username`：管理员用户名
+- `admin.password`：管理员密码
+- `site.name`：网站名称
+- `site.maxFileSize`：最大上传文件大小（单位：MB），建议10MB
+- `site.port`：服务端口，默认18080
+- `site.host`：服务监听地址，默认127.0.0.0本地监听；如果需要调试或外网访问，可修改为0.0.0.0
 
-## 编译部署步骤
+### 2. Systemd 服务配置
 
-1. 准备运行环境
-```bash
-# 创建服务目录
-sudo mkdir -p /opt/imagehosting
-sudo cp imagehosting /opt/imagehosting/
-sudo cp config.json /opt/imagehosting/
-sudo cp -r templates /opt/imagehosting/
-
-# 设置权限
-sudo chown -R root:root /opt/imagehosting/imagehosting
-sudo chmod -R 755 /opt/imagehosting/imagehosting
-```
-
-2. 创建 systemd 服务文件
-   使用vim新建服务文件，写入配置文件。
+创建服务文件：
 ```bash
 sudo vim /etc/systemd/system/imagehosting.service
 ```
 
-将以下内容写入服务文件：
+服务文件内容：
 ```ini
 [Unit]
 Description=Image Hosting Service
 After=network.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
+Restart=always
+RestartSec=5
 User=root
-Group=root
 WorkingDirectory=/opt/imagehosting
 ExecStart=/opt/imagehosting/imagehosting
-Restart=always
-RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-3. Nginx 反代服务
-    以下是用于Nginx的反向代理配置示例。请将其添加到你的Nginx配置文件中。注意：网站必须启用SSL/TLS，否则Telegram Bot API将无法正常工作。
+### 3. Nginx 配置
+
+在你的网站配置文件中添加：
 ```nginx
-location / {
+server {
+    listen 443 ssl;
+    server_name your-domain.com; # 填写你的域名
+    
+    # SSL 配置部分
+    ssl_certificate /path/to/cert.pem; # 填写你的 SSL 证书路径，以实际为准
+    ssl_certificate_key /path/to/key.pem; # 填写你的 SSL 证书密钥路径，以实际为准
+    
+    location / {
         proxy_pass http://127.0.0.1:18080;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        client_max_body_size 100m;
+        client_max_body_size 50m; # 限制上传文件大小，必须大于程序配置的最大文件大小
     }
+}
 ```
-完成之后，重新读取Nginx配置文件，使用以下命令：
+
+## 启动和维护
+
+1. 启动服务：
 ```bash
-nginx -t # 检查配置文件，如果ok则继续
-sudo systemctl reload nginx
+sudo systemctl daemon-reload # 重新加载配置，仅首次安装时执行
+sudo systemctl enable imagehosting # 设置开机自启
+sudo systemctl start imagehosting # 启动服务
+sudo systemctl status imagehosting # 查看服务状态
+sudo systemctl stop imagehosting # 停止服务
 ```
 
-4. 服务配置与启动
+2. 检查日志：
 ```bash
-# 重新加载 systemd 配置
-sudo systemctl daemon-reload
-
-# 启动服务
-sudo systemctl start imagehosting
-
-# 设置开机自启
-sudo systemctl enable imagehosting
-
-# 重启服务
-sudo systemctl restart imagehosting
-
-# 停止服务
-sudo systemctl stop imagehosting
-
-# 检查服务状态
-sudo systemctl status imagehosting
-
-# 查看日志
-sudo journalctl -u imagehosting -f
+sudo journalctl -u imagehosting -f # 查看服务日志
 ```
 
 
+## 常见问题
 
-```
+1. 上传失败：
+   - 检查 Bot Token 是否正确
+   - 确认 Bot 是否具有频道管理员权限
+   - 验证 SSL 证书是否正确配置
 
-## 安全建议
+2. 无法访问管理界面：
+   - 确认配置文件中的管理员账号密码正确
+   - 检查服务是否正常运行
+   - 查看服务日志排查问题
 
-1. 确保配置文件权限正确：
-```bash
-sudo chmod 600 /opt/imagehosting/config.json
-```
-
+3. 上传文件大小限制：
+   - 修改 Nginx 配置中的 `client_max_body_size` 参数
+   - 修改程序配置文件中的 `site.maxFileSize` 参数
+  
+4. 目前仍处于测试阶段，可能存在未知问题，欢迎提交 Issue。
