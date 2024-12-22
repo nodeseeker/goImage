@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <link rel="icon" type="image/x-icon" href="{{.Favicon}}">
+    <!-- 移除这一行：<link rel="stylesheet" href="/static/shared-styles.css"> -->
+    <style>
+        /* 共享基础变量 */
+        :root {
+            --primary-color: #4a90e2;
+            --primary-hover: #357abd;
+            --error-color: #dc3545;
+            --success-color: #4CAF50;
+            --bg-color: #f5f5f5;
+            --card-bg: white;
+            --text-color: #333;
+            --text-secondary: #666;
+            --border-radius: 12px;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #1a1a1a;
+                --card-bg: #2d2d2d;
+                --text-color: #fff;
+                --text-secondary: #888;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            padding: 20px;
+            padding-top: 80px;
+        }
+
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background-color: white;
+            padding: 15px 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            color: var(--text-color);
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .button {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .button:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .logout-button {
+            background-color: var(--error-color);
+        }
+
+        .logout-button:hover {
+            background-color: #c82333;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .inactive {
+            background-color: #fff5f5;
+        }
+
+        .action-button {
+            padding: 6px 12px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .delete-button {
+            background-color: var(--error-color);
+            color: white;
+        }
+
+        .restore-button {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            body { background-color: var(--bg-color); }
+            .header { background-color: #2d2d2d; }
+            .header h1 { color: var(--text-color); }
+            .container { 
+                background-color: var(--card-bg);
+                color: var(--text-color);
+            }
+            th {
+                background-color: #333;
+                color: var(--text-color);
+            }
+            td { border-bottom-color: #444; }
+            tr:hover { background-color: #333; }
+            .inactive { background-color: #3d2c2c; }
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                padding: 10px;
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            body {
+                padding-top: 120px;
+            }
+
+            table {
+                display: block;
+                overflow-x: auto;
+            }
+        }
+
+        /* 在已有样式后添加分页样式 */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .pagination a {
+            padding: 8px 12px;
+            border: 1px solid var(--primary-color);
+            border-radius: 4px;
+            color: var(--primary-color);
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .pagination a:hover {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .pagination .current {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+        }
+
+        .pagination .disabled {
+            border-color: #ccc;
+            color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .pagination .disabled:hover {
+            background-color: transparent;
+            color: #ccc;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .pagination .disabled {
+                border-color: #666;
+                color: #666;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>图片管理系统</h1>
+        <div class="nav-buttons">
+            <a href="/" class="button">上传图片</a>
+            <a href="/logout" class="button logout-button">退出登录</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>文件名</th>
+                    <th>访问链接</th>
+                    <th>IP地址</th>
+                    <th>上传时间</th>
+                    <th>访问次数</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Images}}
+                <tr {{if not .IsActive}}class="inactive"{{end}}>
+                    <td>{{.ID}}</td>
+                    <td>{{.Filename}}</td>
+                    <td><a href="{{.ProxyURL}}" target="_blank">{{.ProxyURL}}</a></td>
+                    <td>{{.IPAddress}}</td>
+                    <td>{{.UploadTime}}</td>
+                    <td>{{.ViewCount}}</td>
+                    <td>{{if .IsActive}}活跃{{else}}已删除{{end}}</td>
+                    <td>
+                        <button onclick="toggleStatus({{.ID}})" 
+                            class="action-button {{if .IsActive}}delete-button{{else}}restore-button{{end}}">
+                            {{if .IsActive}}删除{{else}}恢复{{end}}
+                        </button>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+
+        <div class="pagination">
+            {{if .HasPrev}}
+                <a href="?page={{subtract .Page 1}}">&laquo; 上一页</a>
+            {{else}}
+                <span class="disabled">&laquo; 上一页</span>
+            {{end}}
+
+            <span class="current">第 {{.Page}} 页 / 共 {{.TotalPages}} 页</span>
+
+            {{if .HasNext}}
+                <a href="?page={{add .Page 1}}">下一页 &raquo;</a>
+            {{else}}
+                <span class="disabled">下一页 &raquo;</span>
+            {{end}}
+        </div>
+    </div>
+
+    <script>
+        function toggleStatus(id) {
+            fetch('/admin/toggle/' + id, {method: 'POST'})
+                .then(() => location.reload());
+        }
+    </script>
+</body>
+</html>
