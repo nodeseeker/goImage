@@ -2,6 +2,27 @@
 
 基于 Go 语言开发的图片托管服务，使用 Telegram 作为存储后端。
 
+## 功能特性
+
+
+## 页面展示
+首页支持点击或拖拽上传图片。
+
+![首页](https://github.com/nodeseeker/goImage/blob/main/images/index.png?raw=true)
+
+上传进度展示和后台处理显示。
+
+![进度](https://github.com/nodeseeker/goImage/blob/main/images/home.png?raw=true)
+
+登录页面，输入用户名和密码登录。
+
+![登录](https://github.com/nodeseeker/goImage/blob/main/images/login.png?raw=true)
+
+管理页面，支持查看上传记录和删除图片。注意：删除操作为禁止访问图片，数据依旧存留在telegram频道中。
+
+![管理](https://github.com/nodeseeker/goImage/blob/main/images/admin.png?raw=true)
+
+
 ## 前置准备
 
 1. Telegram 准备工作：
