@@ -162,5 +162,8 @@ sudo journalctl -u imagehosting -f # 查看服务日志
 3. 上传文件大小限制：
    - 修改 Nginx 配置中的 `client_max_body_size` 参数
    - 修改程序配置文件中的 `site.maxFileSize` 参数
+
+4. 已知bug：
+   - 登录时，输入错误的用户名或密码将提示Invalid credentials，需要在新标签页再次打开登录页面，直接在原先标签页刷新，将一直报错Invalid credentials
   
 4. 目前仍处于测试阶段，可能存在未知问题，欢迎提交 Issue。
