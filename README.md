@@ -3,6 +3,9 @@
 基于 Go 语言开发的图片托管服务，使用 Telegram 作为存储后端。
 
 ## 功能特性
+- 无限容量，上传图片到 Telegram 频道
+- 轻量级要求，内存占用小于 10MB
+- 支持管理员登录，查看上传记录和删除图片
 
 
 ## 页面展示
@@ -18,7 +21,7 @@
 
 ![登录](https://github.com/nodeseeker/goImage/blob/main/images/login.png?raw=true)
 
-管理页面，支持查看上传记录和删除图片。注意：删除操作为禁止访问图片，数据依旧存留在telegram频道中。
+管理页面，查看访问统计和删除图片。注意：删除操作为禁止访问图片，数据依旧存留在telegram频道中。
 
 ![管理](https://github.com/nodeseeker/goImage/blob/main/images/admin.png?raw=true)
 
@@ -46,20 +49,20 @@ cd /opt/imagehosting
 ```
 
 2. 下载并解压程序：
-   从 [releases页面](https://github.com/nodeseeker/goImage/releases) 下载最新版本
+   从 [releases页面](https://github.com/nodeseeker/goImage/releases) 下载最新版本并解压到 `/opt/imagehosting` 目录。
 ```bash
 unzip goImage.zip
 ```
 解压后的目录结构：
 ```
-/opt/imagehosting/imagehosting
-/opt/imagehosting/config.json
-/opt/imagehosting/static/favicon.ico
-/opt/imagehosting/static/robots.txt
-/opt/imagehosting/templates/home.html
-/opt/imagehosting/templates/login.html
-/opt/imagehosting/templates/upload.html
-/opt/imagehosting/templates/admin.html
+/opt/imagehosting/imagehosting # 程序文件
+/opt/imagehosting/config.json # 配置文件
+/opt/imagehosting/static/favicon.ico # 网站图标
+/opt/imagehosting/static/robots.txt # 爬虫协议
+/opt/imagehosting/templates/home.html # 首页模板
+/opt/imagehosting/templates/login.html # 登录模板
+/opt/imagehosting/templates/upload.html # 上传模板
+/opt/imagehosting/templates/admin.html # 管理模板
 ```
 
 3. 设置权限：
@@ -95,8 +98,8 @@ sudo chmod 755 /opt/imagehosting/imagehosting
 详细的说明如下：
 - `telegram.token`：电报机器人的Bot Token
 - `telegram.chatId`：频道的Chat ID
-- `admin.username`：管理员用户名
-- `admin.password`：管理员密码
+- `admin.username`：网站管理员用户名
+- `admin.password`：网站管理员密码
 - `site.name`：网站名称
 - `site.maxFileSize`：最大上传文件大小（单位：MB），建议10MB
 - `site.port`：服务端口，默认18080
@@ -158,6 +161,7 @@ server {
 sudo systemctl daemon-reload # 重新加载配置，仅首次安装时执行
 sudo systemctl enable imagehosting # 设置开机自启
 sudo systemctl start imagehosting # 启动服务
+sudo systemctl restart imagehosting # 重启服务
 sudo systemctl status imagehosting # 查看服务状态
 sudo systemctl stop imagehosting # 停止服务
 ```
@@ -185,6 +189,6 @@ sudo journalctl -u imagehosting -f # 查看服务日志
    - 修改程序配置文件中的 `site.maxFileSize` 参数
 
 4. 已知bug：
-   - 登录时，输入错误的用户名或密码将提示Invalid credentials，需要在新标签页再次打开登录页面，直接在原先标签页刷新，将一直报错Invalid credentials
+   - 登录时，输入错误的用户名或密码将提示`Invalid credentials`，需要在新标签页再次打开登录页面.直接在原先标签页刷新，将一直报错`Invalid credentials`。
   
 4. 目前仍处于测试阶段，可能存在未知问题，欢迎提交 Issue。
