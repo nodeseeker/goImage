@@ -287,9 +287,11 @@ func HandleLoginPage(w http.ResponseWriter, r *http.Request) {
 	data := struct {
 		Title   string
 		Favicon string
+		Error   string
 	}{
 		Title:   utils.GetPageTitle("登录"),
 		Favicon: global.AppConfig.Site.Favicon,
+		Error:   r.URL.Query().Get("error"),
 	}
 	t.Execute(w, data)
 }
@@ -328,7 +330,8 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+	// 登录失败时重定向到登录页面并显示错误信息
+	http.Redirect(w, r, "/login?error=用户名或密码错误", http.StatusSeeOther)
 }
 
 func HandleLogout(w http.ResponseWriter, r *http.Request) {
