@@ -177,26 +177,6 @@
                 font-size: 12px;
             }
         }
-
-        .error-message {
-            color: var(--error-color);
-            text-align: center;
-            margin-bottom: 15px;
-            padding: 10px;
-            border-radius: 4px;
-            background-color: rgba(220, 53, 69, 0.1);
-            display: none;
-        }
-
-        .error-message.show {
-            display: block;
-        }
-
-        @media (prefers-color-scheme: dark) {
-            .error-message {
-                background-color: rgba(220, 53, 69, 0.2);
-            }
-        }
     </style>
 </head>
 <body>
@@ -206,11 +186,6 @@
 
     <div class="login-container">
         <h2>管理员登录</h2>
-        {{if .Error}}
-        <div class="error-message show">
-            {{.Error}}
-        </div>
-        {{end}}
         <form action="/login" method="post">
             <div class="input-group">
                 <input type="text" name="username" placeholder="用户名" required>

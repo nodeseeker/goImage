@@ -52,7 +52,9 @@ func HandleHome(w http.ResponseWriter, r *http.Request) {
 func HandleUpload(w http.ResponseWriter, r *http.Request) {
 	// 添加请求追踪ID
 	requestID := uuid.New().String()
-	ctx := context.WithValue(r.Context(), "requestID", requestID)
+	type contextKey string
+	const requestIDKey contextKey = "requestID"
+	ctx := context.WithValue(r.Context(), requestIDKey, requestID)
 
 	// 使用defer统一处理panic
 	defer func() {
@@ -176,8 +178,9 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 				ip_address, 
 				user_agent, 
 				filename,
-				content_type
-			) VALUES (?, ?, ?, ?, ?, ?)
+				content_type,
+				file_id
+			) VALUES (?, ?, ?, ?, ?, ?, ?)
 		`)
 		if err != nil {
 			return err
@@ -191,6 +194,7 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 			userAgent,
 			filename,
 			contentType,
+			fileID, // 添加 fileID
 		)
 		return err
 	})
@@ -216,6 +220,10 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 	t.Execute(w, data)
 }
 
+func GetTelegramFileURL(fileID string) (string, error) {
+	return global.Bot.GetFileDirectURL(fileID)
+}
+
 func HandleImage(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	uuid := vars["uuid"]
@@ -225,14 +233,15 @@ func HandleImage(w http.ResponseWriter, r *http.Request) {
 
 	var telegramURL, contentType string
 	var isActive bool
+	var fileID string
 
 	err := db.WithDBTimeout(func(ctx context.Context) error {
 		return global.DB.QueryRowContext(ctx, `
-            SELECT telegram_url, content_type, is_active 
+            SELECT telegram_url, content_type, is_active, file_id 
             FROM images 
             WHERE proxy_url LIKE ?`,
 			fmt.Sprintf("/file/%s%%", uuid),
-		).Scan(&telegramURL, &contentType, &isActive)
+		).Scan(&telegramURL, &contentType, &isActive, &fileID)
 	})
 
 	if err != nil {
@@ -245,13 +254,47 @@ func HandleImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 检查URL缓存
+	global.URLCacheMux.RLock()
+	cache, exists := global.URLCache[telegramURL]
+	global.URLCacheMux.RUnlock()
+
+	var currentURL string
+	if !exists || time.Now().After(cache.ExpiresAt) {
+		// 获取新的URL
+		newURL, err := GetTelegramFileURL(fileID)
+		if err != nil {
+			http.Error(w, "Failed to refresh file URL", http.StatusInternalServerError)
+			return
+		}
+
+		// 更新缓存
+		global.URLCacheMux.Lock()
+		global.URLCache[telegramURL] = &global.FileURLCache{
+			URL:       newURL,
+			ExpiresAt: time.Now().Add(global.URLCacheTime),
+		}
+		global.URLCacheMux.Unlock()
+
+		currentURL = newURL
+
+		// 更新数据库中的URL
+		_, err = global.DB.Exec("UPDATE images SET telegram_url = ? WHERE proxy_url LIKE ?",
+			newURL, fmt.Sprintf("/file/%s%%", uuid))
+		if err != nil {
+			log.Printf("Failed to update telegram URL in database: %v", err)
+		}
+	} else {
+		currentURL = cache.URL
+	}
+
 	_, err = global.DB.Exec("UPDATE images SET view_count = view_count + 1 WHERE proxy_url LIKE ?",
 		fmt.Sprintf("/file/%s%%", uuid))
 	if err != nil {
 		log.Printf("Failed to update view count: %v", err)
 	}
 
-	resp, err := http.Get(telegramURL)
+	resp, err := http.Get(currentURL)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -287,11 +330,9 @@ func HandleLoginPage(w http.ResponseWriter, r *http.Request) {
 	data := struct {
 		Title   string
 		Favicon string
-		Error   string
 	}{
 		Title:   utils.GetPageTitle("登录"),
 		Favicon: global.AppConfig.Site.Favicon,
-		Error:   r.URL.Query().Get("error"),
 	}
 	t.Execute(w, data)
 }
@@ -330,8 +371,7 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 登录失败时重定向到登录页面并显示错误信息
-	http.Redirect(w, r, "/login?error=用户名或密码错误", http.StatusSeeOther)
+	http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 }
 
 func HandleLogout(w http.ResponseWriter, r *http.Request) {

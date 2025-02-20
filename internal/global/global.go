@@ -38,6 +38,11 @@ var (
 
 	CurrentUploads int
 	IsDevelopment  = true // 添加开发环境标志
+
+	// URLCache 用于存储文件URL的缓存
+	URLCache     = make(map[string]*FileURLCache)
+	URLCacheMux  sync.RWMutex
+	URLCacheTime = 23 * time.Hour // Telegram URL 通常 24 小时过期
 )
 
 const (
@@ -95,4 +100,10 @@ type ImageRecord struct {
 	ContentType string
 	IsActive    bool
 	ViewCount   int
+}
+
+// FileURLCache 用于缓存文件URL
+type FileURLCache struct {
+	URL       string
+	ExpiresAt time.Time
 }

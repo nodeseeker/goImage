@@ -18,6 +18,9 @@ func InitDB() {
 	}
 
 	var err error
+	// 配置 SQLite 数据库：
+	// - journal_mode=WAL：启用预写式日志，提供更好的并发性能
+	// - synchronous=NORMAL：使用普通同步模式，在性能和安全性之间取得平衡
 	global.DB, err = sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL")
 	if err != nil {
 		log.Fatal("Failed to open database:", err)
@@ -34,7 +37,8 @@ func InitDB() {
 		filename TEXT NOT NULL,
 		content_type TEXT NOT NULL,
 		is_active BOOLEAN DEFAULT 1,
-		view_count INTEGER DEFAULT 0
+		view_count INTEGER DEFAULT 0,
+		file_id TEXT NOT NULL
 	)`)
 
 	if err != nil {
