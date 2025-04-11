@@ -9,7 +9,7 @@
 
 
 ## 页面展示
-首页支持点击或拖拽上传图片。
+首页支持点击、拖拽或者剪贴板上传图片。
 
 ![首页](https://github.com/nodeseeker/goImage/blob/main/images/index.png?raw=true)
 
@@ -41,6 +41,8 @@
    - 域名已配置 SSL 证书（必需）
 
 ## 安装步骤
+
+**注意文件名称和路径，以实际文件为准**
 
 1. 创建服务目录：
 ```bash
@@ -171,6 +173,10 @@ sudo systemctl stop imagehosting # 停止服务
 sudo journalctl -u imagehosting -f # 查看服务日志
 ```
 
+## 更新日志
+- 2024-12-22：v0.0.1 初始版本发布
+- 2025-02-20：v0.1.0 修复telegram的URL有效期失效bug，与此前的预发布版本数据库不兼容，需要全新安装
+- 2025-04-11：v0.1.1 新增从剪贴板上传图片功能，支持多架构Linux系统
 
 ## 常见问题
 
