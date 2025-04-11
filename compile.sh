@@ -72,5 +72,9 @@ echo "🔐 生成校验和文件..."
 (cd $OUTPUT_DIR && sha256sum *.zip > SHA256SUMS.txt)
 echo "✅ 校验和文件已生成: $OUTPUT_DIR/SHA256SUMS.txt"
 
+# 清理二进制文件，只保留zip包
+echo "🧹 清理编译文件，只保留zip包..."
+find $OUTPUT_DIR -type f -not -name "*.zip" -not -name "SHA256SUMS.txt" -delete
+
 echo "🎉 编译完成!"
 ls -la $OUTPUT_DIR
