@@ -338,6 +338,34 @@
                     margin-top: -40px; /* 小屏幕上减小偏移量 */
                 }
             }
+
+            /* 添加剪贴板粘贴提示样式 */
+            .paste-hint {
+                margin-top: 15px;
+                margin-bottom: 15px;
+                text-align: center;
+                color: #888;
+                font-size: 14px;
+                padding: 5px;
+                border-radius: 4px;
+                background-color: #f0f7ff;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .paste-hint svg {
+                margin-right: 8px;
+                width: 16px;
+                height: 16px;
+            }
+
+            @media (prefers-color-scheme: dark) {
+                .paste-hint {
+                    background-color: #252525;
+                    color: #aaa;
+                }
+            }
         </style>
     </head>
     <body>
@@ -355,6 +383,16 @@
                     </div>
                 </div>
                 <input type="file" name="image" accept="image/*" id="fileInput" class="file-input">
+                
+                <!-- 添加剪贴板粘贴提示 -->
+                <div class="paste-hint">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                        <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                    </svg>
+                    <span>可直接 Ctrl+V 粘贴图片上传</span>
+                </div>
+                
                 <button type="submit" class="upload-button">上传图片</button>
                 <div class="progress-container" id="progressContainer">
                     <div class="progress-bar">
@@ -433,6 +471,75 @@
                 }
                 dropZone.style.borderColor = '#4a90e2';
                 dropZone.style.backgroundColor = '#f8fbff';
+            });
+
+            // 添加剪贴板粘贴功能
+            document.addEventListener('paste', function(e) {
+                // 获取剪贴板数据
+                const items = e.clipboardData.items;
+                let imageFile = null;
+                
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf('image') !== -1) {
+                        imageFile = items[i].getAsFile();
+                        break;
+                    }
+                }
+                
+                if (!imageFile) {
+                    return; // 没有图片数据
+                }
+                
+                // 验证文件类型
+                const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                if (!allowedTypes.includes(imageFile.type)) {
+                    showAlert('不支持的文件类型。请上传 JPG、PNG、GIF 或 WebP 格式的图片。');
+                    return;
+                }
+                
+                // 验证文件大小
+                if (imageFile.size > maxFileSize) {
+                    showAlert('文件大小超过 ' + {{.MaxFileSize}} + 'MB 限制');
+                    return;
+                }
+                
+                // 创建日期字符串作为文件名
+                const now = new Date();
+                const fileName = 'clipboard_' + 
+                    now.getFullYear() + 
+                    ('0' + (now.getMonth() + 1)).slice(-2) + 
+                    ('0' + now.getDate()).slice(-2) + 
+                    ('0' + now.getHours()).slice(-2) + 
+                    ('0' + now.getMinutes()).slice(-2) + 
+                    ('0' + now.getSeconds()).slice(-2) + 
+                    '.' + imageFile.type.split('/')[1];
+                
+                // 创建一个新的File对象，包含自定义文件名
+                const renamedFile = new File([imageFile], fileName, {
+                    type: imageFile.type,
+                    lastModified: new Date().getTime()
+                });
+                
+                // 创建一个新的FileList对象（间接方式）
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(renamedFile);
+                
+                // 更新文件输入框的值
+                const fileInput = document.getElementById('fileInput');
+                fileInput.files = dataTransfer.files;
+                
+                // 更新UI显示已选择的文件
+                document.querySelector('.upload-text').innerHTML = '已选择: ' + fileName;
+                
+                // 闪烁上传区域，提示用户已添加文件
+                dropZone.style.transition = 'background-color 0.3s';
+                dropZone.style.backgroundColor = '#e0f0ff';
+                setTimeout(() => {
+                    dropZone.style.backgroundColor = '#f8fbff';
+                }, 300);
+                
+                // 自动滚动到上传按钮
+                document.querySelector('.upload-button').scrollIntoView({ behavior: 'smooth' });
             });
 
             function validateForm() {
