@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  goimage:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/opt/imagehosting/data
+      - ./config/config.json:/opt/imagehosting/config.json
+    environment:
+      - ENV=production
+    restart: always
+
+networks:
+  default:
+    driver: bridge
