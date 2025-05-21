@@ -19,19 +19,36 @@ import (
 	"hosting/internal/db"
 	"hosting/internal/global"
 	"hosting/internal/handlers"
+	"hosting/internal/logger"
 	"hosting/internal/middleware"
 	"hosting/internal/telegram"
+	"hosting/internal/template"
 )
 
 func main() {
+	// 初始化日志系统
+	if os.Getenv("DEBUG") == "true" {
+		logger.InitLogger(logger.DebugLevel)
+	} else {
+		logger.InitLogger(logger.InfoLevel)
+	}
+	logger.Info("图床服务启动中...")
+
 	// 加载配置
 	config.LoadConfig()
+	logger.Info("配置加载完成")
 
 	// 初始化数据库
 	db.InitDB()
+	logger.Info("数据库连接初始化完成")
 
 	// 初始化 Telegram bot
 	telegram.InitTelegram()
+	logger.Info("Telegram 机器人初始化完成")
+
+	// 初始化模板
+	template.InitTemplates()
+	logger.Info("模板初始化完成")
 
 	// 生成随机 session secret
 	var sessionSecret []byte
@@ -70,6 +87,19 @@ func main() {
 	// 创建全局上传信号量
 	global.UploadSemaphore = make(chan struct{}, global.MaxConcurrentUploads)
 
+	// 启动缓存清理定时器
+	go func() {
+		cacheTicker := time.NewTicker(12 * time.Hour)
+		defer cacheTicker.Stop()
+
+		for {
+			select {
+			case <-cacheTicker.C:
+				cleanURLCache()
+			}
+		}
+	}()
+
 	r := mux.NewRouter()
 
 	// 静态文件
@@ -87,6 +117,10 @@ func main() {
 	r.HandleFunc("/admin", middleware.RequireAuth(handlers.HandleAdmin)).Methods("GET")
 	r.HandleFunc("/admin/toggle/{id}", middleware.RequireAuth(handlers.HandleToggleStatus)).Methods("POST")
 
+	// 状态监控和健康检查路由
+	r.HandleFunc("/health", handlers.HandleHealthCheck).Methods("GET")
+	r.HandleFunc("/status", handlers.HandleStatus).Methods("GET")
+
 	// 服务器配置
 	port := global.AppConfig.Site.Port
 	if port == 0 {
@@ -102,11 +136,12 @@ func main() {
 	shutdownTimeout := 30 * time.Second
 
 	srv := &http.Server{
-		Addr:         addr,
-		Handler:      r, // 移除 LoggingMiddleware
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:           addr,
+		Handler:        middleware.LoggingMiddleware(r), // 添加日志记录中间件
+		ReadTimeout:    15 * time.Second,
+		WriteTimeout:   30 * time.Second,  // 增加写入超时，处理大文件
+		IdleTimeout:    120 * time.Second, // 增加空闲连接超时
+		MaxHeaderBytes: 1 << 20,           // 限制请求头大小为 1MB
 	}
 
 	// 启动服务器
@@ -120,17 +155,47 @@ func main() {
 	// 优雅关闭
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-	<-stop
+
+	// 等待终止信号
+	sig := <-stop
+	logger.Info("收到终止信号: %v，开始优雅关闭服务...", sig)
 
 	// 优雅关闭时增加超时控制
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
+	logger.Info("正在关闭 HTTP 服务器...")
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Printf("Server shutdown error: %v", err)
+		logger.Error("HTTP 服务器关闭错误: %v", err)
+	} else {
+		logger.Info("HTTP 服务器关闭成功")
 	}
 
+	logger.Info("正在关闭数据库连接...")
 	if err := global.DB.Close(); err != nil {
-		log.Printf("Database close error: %v", err)
+		logger.Error("数据库关闭错误: %v", err)
+	} else {
+		logger.Info("数据库连接关闭成功")
 	}
+
+	logger.Info("服务已完全关闭，感谢使用")
+}
+
+// cleanURLCache 清理过期的URL缓存，防止内存泄漏
+func cleanURLCache() {
+	logger.Info("开始清理URL缓存...")
+	count := 0
+
+	global.URLCacheMux.Lock()
+	defer global.URLCacheMux.Unlock()
+
+	now := time.Now()
+	for key, cache := range global.URLCache {
+		if now.After(cache.ExpiresAt) {
+			delete(global.URLCache, key)
+			count++
+		}
+	}
+
+	logger.Info("URL缓存清理完成，共清理 %d 个过期项", count)
 }
