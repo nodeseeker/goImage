@@ -14,6 +14,16 @@ var (
 
 // InitTemplates 初始化并预加载所有模板
 func InitTemplates() {
+	// 定义模板函数
+	funcMap := template.FuncMap{
+		"add": func(a, b int) int {
+			return a + b
+		},
+		"subtract": func(a, b int) int {
+			return a - b
+		},
+	}
+
 	// 列出所有需要加载的模板
 	templateFiles := map[string]string{
 		"home":   "templates/home.tmpl",
@@ -24,7 +34,11 @@ func InitTemplates() {
 
 	// 加载每个模板
 	for name, file := range templateFiles {
-		tmpl, err := template.ParseFiles(file)
+		// 创建带有函数的模板
+		tmpl := template.New(file).Funcs(funcMap)
+
+		// 解析模板文件
+		tmpl, err := tmpl.ParseFiles(file)
 		if err != nil {
 			log.Fatalf("Failed to parse template %s: %v", file, err)
 		}
