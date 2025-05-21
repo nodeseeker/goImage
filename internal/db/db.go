@@ -45,15 +45,17 @@ func InitDB() {
 		log.Fatal(err)
 	}
 
+	// 创建优化的索引
 	_, err = global.DB.Exec(`
+    -- 优化查询时的索引
     CREATE INDEX IF NOT EXISTS idx_proxy_url ON images(proxy_url);
     CREATE INDEX IF NOT EXISTS idx_upload_time ON images(upload_time);
     CREATE INDEX IF NOT EXISTS idx_is_active ON images(is_active);
+    CREATE INDEX IF NOT EXISTS idx_file_id ON images(file_id);
+    
+    -- 复合索引，优化管理页面查询
+    CREATE INDEX IF NOT EXISTS idx_active_time ON images(is_active, upload_time DESC);
     `)
-
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	if err != nil {
 		log.Fatal(err)

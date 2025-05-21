@@ -1,7 +1,8 @@
-package handlers
+// 此文件不再使用，保留作为参考
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"html/template"
 	"io"
@@ -17,6 +18,7 @@ import (
 
 	"hosting/internal/db"
 	"hosting/internal/global"
+	tmpl "hosting/internal/template"
 	"hosting/internal/utils"
 )
 
@@ -33,9 +35,9 @@ func handleError(w http.ResponseWriter, err *AppError) {
 	http.Error(w, err.Message, err.Code)
 }
 
-// handleHome 使用 templates/home.html
+// HandleHome 使用缓存模板
 func HandleHome(w http.ResponseWriter, r *http.Request) {
-	tmpl, ok := template.GetTemplate("home")
+	t, ok := tmpl.GetTemplate("home")
 	if !ok {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
@@ -50,10 +52,10 @@ func HandleHome(w http.ResponseWriter, r *http.Request) {
 		Favicon:     global.AppConfig.Site.Favicon,
 		MaxFileSize: global.AppConfig.Site.MaxFileSize,
 	}
-	tmpl.Execute(w, data)
+	t.Execute(w, data)
 }
 
-// HandleUpload 精简说明
+// HandleUpload 处理文件上传
 func HandleUpload(w http.ResponseWriter, r *http.Request) {
 	// 添加请求追踪ID
 	requestID := uuid.New().String()
@@ -199,7 +201,7 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 			userAgent,
 			filename,
 			contentType,
-			fileID, // 添加 fileID
+			fileID,
 		)
 		return err
 	})
@@ -210,7 +212,12 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t := template.Must(template.ParseFiles("templates/upload.tmpl"))
+	t, ok := tmpl.GetTemplate("upload")
+	if !ok {
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
+
 	data := struct {
 		Title    string
 		Favicon  string
@@ -283,7 +290,7 @@ func HandleImage(w http.ResponseWriter, r *http.Request) {
 
 		currentURL = newURL
 
-		// 更新数据库中的URL
+		// 更新数据库中的URL和访问计数
 		err = db.WithDBTimeout(func(ctx context.Context) error {
 			tx, err := global.DB.BeginTx(ctx, nil)
 			if err != nil {
@@ -327,41 +334,18 @@ func HandleImage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 创建一个带超时的客户端
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-
-	req, err := http.NewRequestWithContext(r.Context(), "GET", currentURL, nil)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	resp, err := client.Do(req)
+	resp, err := http.Get(currentURL)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
 
-	// 设置响应头
 	w.Header().Set("Content-Type", contentType)
-
-	// 如果原始响应有内容长度，也设置它
-	if resp.ContentLength > 0 {
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", resp.ContentLength))
-	}
-
-	// 流式拷贝数据
-	buf := make([]byte, 32*1024) // 32KB 缓冲区
-	_, err = io.CopyBuffer(w, resp.Body, buf)
-	if err != nil {
-		log.Printf("Error streaming file: %v", err)
-	}
+	io.Copy(w, resp.Body)
 }
 
-// 登录页面使用 templates/login.html
+// HandleLoginPage 处理登录页面
 func HandleLoginPage(w http.ResponseWriter, r *http.Request) {
 	session, err := global.Store.Get(r, "admin-session")
 	if err != nil {
@@ -382,7 +366,12 @@ func HandleLoginPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t := template.Must(template.ParseFiles("templates/login.tmpl"))
+	t, ok := tmpl.GetTemplate("login")
+	if !ok {
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
+
 	data := struct {
 		Title   string
 		Favicon string
@@ -393,6 +382,7 @@ func HandleLoginPage(w http.ResponseWriter, r *http.Request) {
 	t.Execute(w, data)
 }
 
+// HandleLogin 处理登录请求
 func HandleLogin(w http.ResponseWriter, r *http.Request) {
 	session, err := global.Store.Get(r, "admin-session")
 	if err != nil {
@@ -430,6 +420,7 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 }
 
+// HandleLogout 处理登出请求
 func HandleLogout(w http.ResponseWriter, r *http.Request) {
 	session, err := global.Store.Get(r, "admin-session")
 	if err != nil {
@@ -446,11 +437,10 @@ func HandleLogout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//log.Println("User logged out successfully")
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
-// 管理页面使用 templates/admin.html
+// HandleAdmin 处理管理页面
 func HandleAdmin(w http.ResponseWriter, r *http.Request) {
 	pageSize := 10
 	page := 1
@@ -461,54 +451,73 @@ func HandleAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 	offset := (page - 1) * pageSize
 
-	// 获取总记录数
 	var total int
-	err := global.DB.QueryRow("SELECT COUNT(*) FROM images").Scan(&total)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// 获取分页数据
-	rows, err := global.DB.Query(`
-        SELECT id, proxy_url, ip_address, upload_time, filename, is_active, view_count
-        FROM images 
-        ORDER BY upload_time DESC
-        LIMIT ? OFFSET ?
-    `, pageSize, offset)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
-
 	var images []ImageRecord
-	for rows.Next() {
-		var img ImageRecord
-		err := rows.Scan(&img.ID, &img.ProxyURL, &img.IPAddress, &img.UploadTime,
-			&img.Filename, &img.IsActive, &img.ViewCount)
+
+	// 使用事务处理分页数据加载
+	err := db.WithDBTimeout(func(ctx context.Context) error {
+		tx, err := global.DB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 		if err != nil {
-			continue
+			return err
 		}
-		images = append(images, img)
+		defer tx.Rollback()
+
+		// 获取总记录数
+		err = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM images").Scan(&total)
+		if err != nil {
+			return err
+		}
+
+		// 获取分页数据
+		rows, err := tx.QueryContext(ctx, `
+			SELECT id, proxy_url, ip_address, upload_time, filename, is_active, view_count
+			FROM images 
+			ORDER BY upload_time DESC
+			LIMIT ? OFFSET ?
+		`, pageSize, offset)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var img ImageRecord
+			err := rows.Scan(&img.ID, &img.ProxyURL, &img.IPAddress, &img.UploadTime,
+				&img.Filename, &img.IsActive, &img.ViewCount)
+			if err != nil {
+				continue
+			}
+			images = append(images, img)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	totalPages := (total + pageSize - 1) / pageSize
 
-	funcMap := template.FuncMap{
-		"add": func(a, b int) int {
-			return a + b
-		},
-		"subtract": func(a, b int) int {
-			return a - b
-		},
-	}
+	t, ok := tmpl.GetTemplate("admin")
+	if !ok {
+		// 回退到动态加载模板
+		funcMap := template.FuncMap{
+			"add": func(a, b int) int {
+				return a + b
+			},
+			"subtract": func(a, b int) int {
+				return a - b
+			},
+		}
 
-	t := template.New("admin.tmpl").Funcs(funcMap)
-	t, err = t.ParseFiles("templates/admin.tmpl")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		t = template.New("admin.tmpl").Funcs(funcMap)
+		t, err = t.ParseFiles("templates/admin.tmpl")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	data := struct {
@@ -535,11 +544,16 @@ func HandleAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// HandleToggleStatus 处理图片状态切换
 func HandleToggleStatus(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 
-	_, err := global.DB.Exec("UPDATE images SET is_active = NOT is_active WHERE id = ?", id)
+	err := db.WithDBTimeout(func(ctx context.Context) error {
+		_, err := global.DB.ExecContext(ctx, "UPDATE images SET is_active = NOT is_active WHERE id = ?", id)
+		return err
+	})
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
