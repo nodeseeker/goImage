@@ -35,8 +35,8 @@ func handleError(w http.ResponseWriter, err *AppError) {
 
 // handleHome 使用 templates/home.html
 func HandleHome(w http.ResponseWriter, r *http.Request) {
-	tmpl, ok := template.GetTemplate("home")
-	if !ok {
+	tmpl, err := template.ParseFiles("templates/home.tmpl")
+	if err != nil {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
 	}
