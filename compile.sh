@@ -2,8 +2,9 @@
 
 # 设置程序名称和版本
 APP_NAME="imagehosting"
-VERSION="0.1.2"
-MAIN_PATH="./cmd/server"
+VERSION="0.1.3"
+SERVER_PATH="./cmd/server"
+CLIENT_PATH="./cmd/client"
 OUTPUT_DIR="./bin"
 
 # 创建输出目录
@@ -29,41 +30,87 @@ echo "🔒 设置移除个人信息..."
 LDFLAGS="-s -w $BUILD_TIME_FLAGS"
 
 # 支持的目标平台/架构
-PLATFORMS=(
+# 服务器平台列表
+SERVER_PLATFORMS=(
     "linux/amd64"
     "linux/arm64"
     "linux/loong64"
     "linux/riscv64"
 )
 
+# 客户端平台列表（增加Windows和macOS支持）
+CLIENT_PLATFORMS=(
+    "linux/amd64"
+    "linux/arm64"
+    "linux/loong64"
+    "linux/riscv64"
+    "windows/amd64"
+    "windows/386"
+    "windows/arm64"
+    "darwin/amd64"
+    "darwin/arm64"
+)
+
 # 开始编译
 echo "🚀 开始编译 $APP_NAME v$VERSION..."
 
-# 循环编译每个平台
-for PLATFORM in "${PLATFORMS[@]}"; do
+# 编译服务器端
+echo "🖥️ 编译服务器端..."
+for PLATFORM in "${SERVER_PLATFORMS[@]}"; do
     GOOS=${PLATFORM%/*}
     GOARCH=${PLATFORM#*/}
     
-    OUTPUT="$OUTPUT_DIR/$APP_NAME-$GOOS-$GOARCH"
-    ZIP_NAME="$APP_NAME-$GOOS-$GOARCH.zip"
+    SERVER_OUTPUT="$OUTPUT_DIR/${APP_NAME}-server-$GOOS-$GOARCH"
+    SERVER_ZIP_NAME="${APP_NAME}-server-$GOOS-$GOARCH.zip"
     
     if [ $GOOS = "windows" ]; then
-        OUTPUT="$OUTPUT.exe"
+        SERVER_OUTPUT="${SERVER_OUTPUT}.exe"
     fi
     
-    echo "📦 编译 $GOOS/$GOARCH..."
+    echo "📦 编译服务器 $GOOS/$GOARCH..."
     
-    # 设置平台特定的环境变量并执行构建
-    env GOOS=$GOOS GOARCH=$GOARCH go build -trimpath -ldflags "$LDFLAGS" -o $OUTPUT $MAIN_PATH
+    # 编译服务器
+    env GOOS=$GOOS GOARCH=$GOARCH go build -trimpath -ldflags "$LDFLAGS" -o $SERVER_OUTPUT $SERVER_PATH
+    SERVER_SUCCESS=$?
     
-    if [ $? -ne 0 ]; then
-        echo "❌ 编译 $GOOS/$GOARCH 失败"
+    if [ $SERVER_SUCCESS -ne 0 ]; then
+        echo "❌ 服务器编译失败: $GOOS/$GOARCH"
     else
-        echo "✅ 成功编译: $OUTPUT"
+        echo "✅ 服务器编译成功: $GOOS/$GOARCH"
         
         # 创建ZIP文件
-        echo "📦 打包为 $ZIP_NAME..."
-        (cd $OUTPUT_DIR && zip -j "$ZIP_NAME" "$(basename $OUTPUT)" && echo "✅ 打包完成: $OUTPUT_DIR/$ZIP_NAME") || echo "❌ 打包失败: $ZIP_NAME"
+        echo "📦 打包服务器为 $SERVER_ZIP_NAME..."
+        (cd $OUTPUT_DIR && zip -j "$SERVER_ZIP_NAME" "$(basename $SERVER_OUTPUT)" && echo "✅ 服务器打包完成: $OUTPUT_DIR/$SERVER_ZIP_NAME") || echo "❌ 服务器打包失败: $SERVER_ZIP_NAME"
+    fi
+done
+
+# 编译客户端
+echo "📱 编译客户端..."
+for PLATFORM in "${CLIENT_PLATFORMS[@]}"; do
+    GOOS=${PLATFORM%/*}
+    GOARCH=${PLATFORM#*/}
+    
+    CLIENT_OUTPUT="$OUTPUT_DIR/${APP_NAME}-client-$GOOS-$GOARCH"
+    CLIENT_ZIP_NAME="${APP_NAME}-client-$GOOS-$GOARCH.zip"
+    
+    if [ $GOOS = "windows" ]; then
+        CLIENT_OUTPUT="${CLIENT_OUTPUT}.exe"
+    fi
+    
+    echo "📦 编译客户端 $GOOS/$GOARCH..."
+    
+    # 编译客户端
+    env GOOS=$GOOS GOARCH=$GOARCH go build -trimpath -ldflags "$LDFLAGS" -o $CLIENT_OUTPUT $CLIENT_PATH
+    CLIENT_SUCCESS=$?
+    
+    if [ $CLIENT_SUCCESS -ne 0 ]; then
+        echo "❌ 客户端编译失败: $GOOS/$GOARCH"
+    else
+        echo "✅ 客户端编译成功: $GOOS/$GOARCH"
+        
+        # 创建ZIP文件
+        echo "📦 打包客户端为 $CLIENT_ZIP_NAME..."
+        (cd $OUTPUT_DIR && zip -j "$CLIENT_ZIP_NAME" "$(basename $CLIENT_OUTPUT)" && echo "✅ 客户端打包完成: $OUTPUT_DIR/$CLIENT_ZIP_NAME") || echo "❌ 客户端打包失败: $CLIENT_ZIP_NAME"
     fi
 done
 
