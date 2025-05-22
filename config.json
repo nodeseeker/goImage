@@ -11,6 +11,24 @@
         "name": "NodeSeek",
         "maxFileSize": 10,
         "port": 18080,
-        "host": "127.0.0.1"
-    }
+        "host": "127.0.0.1",
+        "favicon": "favicon.ico"
+    },
+    "database": {
+        "path": "./images.db",
+        "maxOpenConns": 25,
+        "maxIdleConns": 10,
+        "connMaxLifetime": "5m"
+    },
+    "security": {
+        "rateLimit": {
+            "enabled": true,
+            "limit": 60,
+            "window": "1m"
+        },
+        "allowedHosts": ["localhost", "127.0.0.1"],
+        "sessionSecret": "",
+        "statusKey": "nodeseek_status"
+    },
+    "environment": "development"
 }

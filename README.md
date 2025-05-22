@@ -98,19 +98,57 @@ sudo chmod 755 /opt/imagehosting/imagehosting-server
         "name": "NodeSeek",
         "maxFileSize": 10,
         "port": 18080,
-        "host": "127.0.0.1"
-    }
+        "host": "127.0.0.1",
+        "favicon": "favicon.ico"
+    },
+    "database": {
+        "path": "./images.db",
+        "maxOpenConns": 25,
+        "maxIdleConns": 10,
+        "connMaxLifetime": "5m"
+    },
+    "security": {
+        "rateLimit": {
+            "enabled": true,
+            "limit": 60,
+            "window": "1m"
+        },
+        "allowedHosts": ["localhost", "127.0.0.1"],
+        "sessionSecret": "",
+        "statusKey": "nodeseek_status"
+    },
+    "environment": "development"
 }
 ```
 详细的说明如下：
+
+**基本配置**
 - `telegram.token`：电报机器人的Bot Token
 - `telegram.chatId`：频道的Chat ID
 - `admin.username`：网站管理员用户名
 - `admin.password`：网站管理员密码
 - `site.name`：网站名称
+- `site.favicon`：网站图标文件名
 - `site.maxFileSize`：最大上传文件大小（单位：MB），建议10MB
 - `site.port`：服务端口，默认18080
-- `site.host`：服务监听地址，默认127.0.0.0本地监听；如果需要调试或外网访问，可修改为0.0.0.0
+- `site.host`：服务监听地址，默认127.0.0.1本地监听；如果需要调试或外网访问，可修改为0.0.0.0
+
+**数据库配置**
+- `database.path`：SQLite数据库文件路径，默认为"./images.db"
+- `database.maxOpenConns`：最大数据库连接数，默认25
+- `database.maxIdleConns`：最大空闲连接数，默认10
+- `database.connMaxLifetime`：连接最大生存时间，格式为时间字符串，如"5m"表示5分钟
+
+**安全配置**
+- `security.rateLimit.enabled`：是否启用请求速率限制，true或false
+- `security.rateLimit.limit`：在指定时间窗口内允许的最大请求数，默认60
+- `security.rateLimit.window`：速率限制的时间窗口，格式为时间字符串，如"1m"表示1分钟
+- `security.allowedHosts`：允许访问的主机名列表
+- `security.sessionSecret`：会话密钥，留空将自动生成
+- `security.statusKey`：状态页面访问密钥
+
+**环境配置**
+- `environment`：运行环境，"development"（开发环境）或"production"（生产环境）
 
 ### 2. Systemd 服务配置
 
