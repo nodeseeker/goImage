@@ -117,6 +117,11 @@ func main() {
 	r.HandleFunc("/admin", middleware.RequireAuth(handlers.HandleAdmin)).Methods("GET")
 	r.HandleFunc("/admin/toggle/{id}", middleware.RequireAuth(handlers.HandleToggleStatus)).Methods("POST")
 
+	// RESTful API 路由
+	apiRouter := r.PathPrefix("/api/v1").Subrouter()
+	apiRouter.HandleFunc("/upload", handlers.HandleAPIUpload).Methods("POST", "OPTIONS")
+	apiRouter.HandleFunc("/health", handlers.HandleAPIHealthCheck).Methods("GET")
+
 	// 状态监控和健康检查路由
 	r.HandleFunc("/health", handlers.HandleHealthCheck).Methods("GET")
 	r.HandleFunc("/status", handlers.HandleStatus).Methods("GET")
