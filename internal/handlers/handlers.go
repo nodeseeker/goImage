@@ -150,14 +150,32 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg := tgbotapi.NewDocument(global.AppConfig.Telegram.ChatID, tgbotapi.FilePath(tempFile.Name()))
-	message, err := global.Bot.Send(msg)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	// 根据文件类型选择发送方式
+	var message tgbotapi.Message
+	var fileID string
 
-	fileID := message.Document.FileID
+	// 对于图片文件，使用NewPhoto发送以确保在Telegram中正确显示
+	if contentType == "image/jpeg" || contentType == "image/jpg" || contentType == "image/png" || contentType == "image/webp" {
+		photoMsg := tgbotapi.NewPhoto(global.AppConfig.Telegram.ChatID, tgbotapi.FilePath(tempFile.Name()))
+		message, err = global.Bot.Send(photoMsg)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// 获取最大尺寸的照片文件ID
+		if len(message.Photo) > 0 {
+			fileID = message.Photo[len(message.Photo)-1].FileID
+		}
+	} else {
+		// 对于GIF等其他格式，仍使用Document方式
+		docMsg := tgbotapi.NewDocument(global.AppConfig.Telegram.ChatID, tgbotapi.FilePath(tempFile.Name()))
+		message, err = global.Bot.Send(docMsg)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		fileID = message.Document.FileID
+	}
 	telegramURL, err := global.Bot.GetFileDirectURL(fileID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
