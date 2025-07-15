@@ -92,11 +92,8 @@ func main() {
 		cacheTicker := time.NewTicker(12 * time.Hour)
 		defer cacheTicker.Stop()
 
-		for {
-			select {
-			case <-cacheTicker.C:
-				cleanURLCache()
-			}
+		for range cacheTicker.C {
+			cleanURLCache()
 		}
 	}()
 
