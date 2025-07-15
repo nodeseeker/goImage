@@ -2,7 +2,7 @@
 
 # 设置程序名称和版本
 APP_NAME="imagehosting"
-VERSION="0.1.3"
+VERSION="0.1.4"
 SERVER_PATH="./cmd/server"
 CLIENT_PATH="./cmd/client"
 OUTPUT_DIR="./bin"
