@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"html/template"
@@ -363,12 +364,44 @@ func HandleImage(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
+	// 动态检测内容类型，特别是处理Telegram转换GIF为MP4的情况
+	actualContentType := contentType
+	if contentType == "image/gif" {
+		// 读取前512字节用于内容类型检测
+		peekBuffer := make([]byte, 512)
+		n, _ := io.ReadAtLeast(resp.Body, peekBuffer, 512)
+		if n == 0 {
+			// 如果无法读取足够数据，回退到原始长度
+			n, _ = resp.Body.Read(peekBuffer)
+		}
+
+		// 检测实际内容类型
+		detectedType := http.DetectContentType(peekBuffer[:n])
+
+		// 如果检测到是MP4格式，则使用实际的内容类型
+		if detectedType == "video/mp4" {
+			actualContentType = "video/mp4"
+			log.Printf("GIF file converted to MP4 by Telegram, updating content type")
+		}
+
+		// 创建包含原始内容的新reader
+		resp.Body = io.NopCloser(io.MultiReader(
+			bytes.NewReader(peekBuffer[:n]),
+			resp.Body,
+		))
+	}
+
 	// 设置响应头
-	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Type", actualContentType)
 
 	// 如果原始响应有内容长度，也设置它
 	if resp.ContentLength > 0 {
 		w.Header().Set("Content-Length", fmt.Sprintf("%d", resp.ContentLength))
+	}
+
+	// 对于 HEAD 请求，只返回头部信息，不返回文件内容
+	if r.Method == "HEAD" {
+		return
 	}
 
 	// 流式拷贝数据
