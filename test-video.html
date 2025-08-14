@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Video Test</title>
+</head>
+<body>
+    <h1>Video Embedding Test</h1>
+    
+    <h2>Test 1: Direct Video Tag</h2>
+    <video controls width="400" height="300">
+        <source src="https://img.pa.ci/file/74bc3275-f64f-4594-86cf-2a5e182964bd.gif" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+    
+    <h2>Test 2: Auto-playing Video</h2>
+    <video controls autoplay muted loop width="400" height="300">
+        <source src="https://img.pa.ci/file/7ccee021-8b15-49a5-9489-bdbd9fe94ea8.gif" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+    
+    <h2>Test 3: Image Tag (should fail gracefully)</h2>
+    <img src="https://img.pa.ci/file/74bc3275-f64f-4594-86cf-2a5e182964bd.gif" alt="Test GIF" style="max-width: 400px;">
+    
+    <h2>Test 4: Markdown-style</h2>
+    <p>This is how it appears in markdown:</p>
+    <code>![GIF](https://img.pa.ci/file/74bc3275-f64f-4594-86cf-2a5e182964bd.gif)</code>
+    
+    <script>
+        // 测试 Range 请求支持
+        fetch('https://img.pa.ci/file/74bc3275-f64f-4594-86cf-2a5e182964bd.gif', {
+            method: 'HEAD'
+        })
+        .then(response => {
+            console.log('Headers:', Object.fromEntries(response.headers.entries()));
+            console.log('Accept-Ranges:', response.headers.get('Accept-Ranges'));
+            console.log('Content-Type:', response.headers.get('Content-Type'));
+        })
+        .catch(error => console.error('Error:', error));
+    </script>
+</body>
+</html>

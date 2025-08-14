@@ -357,6 +357,11 @@ func HandleImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 转发 Range 请求头（支持视频流播放）
+	if rangeHeader := r.Header.Get("Range"); rangeHeader != "" {
+		req.Header.Set("Range", rangeHeader)
+	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -366,7 +371,12 @@ func HandleImage(w http.ResponseWriter, r *http.Request) {
 
 	// 动态检测内容类型，特别是处理Telegram转换GIF为MP4的情况
 	actualContentType := contentType
-	if contentType == "image/gif" {
+
+	// 只在非Range请求时进行内容检测，避免影响流播放
+	isRangeRequest := r.Header.Get("Range") != ""
+	needContentDetection := contentType == "image/gif" && !isRangeRequest
+
+	if needContentDetection {
 		// 读取前512字节用于内容类型检测
 		peekBuffer := make([]byte, 512)
 		n, _ := io.ReadAtLeast(resp.Body, peekBuffer, 512)
@@ -389,6 +399,24 @@ func HandleImage(w http.ResponseWriter, r *http.Request) {
 			bytes.NewReader(peekBuffer[:n]),
 			resp.Body,
 		))
+	} else if contentType == "image/gif" {
+		// 对于Range请求，直接假设是MP4（避免破坏流）
+		actualContentType = "video/mp4"
+	}
+
+	// 设置响应状态码（如果是 Range 请求则为 206）
+	if resp.StatusCode == 206 {
+		w.WriteHeader(206)
+		// 转发 Range 相关的响应头
+		if contentRange := resp.Header.Get("Content-Range"); contentRange != "" {
+			w.Header().Set("Content-Range", contentRange)
+		}
+		if acceptRanges := resp.Header.Get("Accept-Ranges"); acceptRanges != "" {
+			w.Header().Set("Accept-Ranges", acceptRanges)
+		}
+	} else {
+		// 对于普通请求，声明支持 Range 请求
+		w.Header().Set("Accept-Ranges", "bytes")
 	}
 
 	// 设置响应头
