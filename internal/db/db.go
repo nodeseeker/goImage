@@ -12,10 +12,15 @@ import (
 )
 
 func InitDB() {
-	dbPath := "./images.db"
-	if global.AppConfig.Database.Path != "" {
-		dbPath = global.AppConfig.Database.Path
+	// 获取数据库路径（从配置文件加载，无默认值）
+	dbPath := global.AppConfig.Database.Path
+
+	// 验证路径不为空
+	if dbPath == "" {
+		log.Fatal("Database path is empty. Please check your config.json configuration.")
 	}
+
+	log.Printf("Initializing database at: %s", dbPath)
 
 	var err error
 	// 配置 SQLite 数据库：
@@ -23,8 +28,15 @@ func InitDB() {
 	// - synchronous=NORMAL：使用普通同步模式，在性能和安全性之间取得平衡
 	global.DB, err = sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL")
 	if err != nil {
-		log.Fatal("Failed to open database:", err)
+		log.Fatalf("Failed to open database at %s: %v", dbPath, err)
 	}
+
+	// 验证数据库连接
+	if err = global.DB.Ping(); err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+
+	log.Println("Database connection established successfully")
 
 	_, err = global.DB.Exec(`
 	CREATE TABLE IF NOT EXISTS images (
