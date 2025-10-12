@@ -23,7 +23,8 @@
 
 ![登录](https://github.com/nodeseeker/goImage/blob/main/images/login.png?raw=true)
 
-管理页面，查看访问统计和删除图片。注意：删除操作为禁止访问图片，数据依旧存留在telegram频道中。
+管理页面，查看访问统计和删除图片。`v0.1.5`版本新增了缩略图功能，以便快速检索和查找、管理等。
+注意：删除操作为禁止访问图片，数据依旧存留在telegram频道中。
 
 ![管理](https://github.com/nodeseeker/goImage/blob/main/images/admin.png?raw=true)
 
