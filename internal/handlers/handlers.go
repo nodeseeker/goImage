@@ -550,7 +550,7 @@ func HandleAdmin(w http.ResponseWriter, r *http.Request) {
 
 	// 获取分页数据
 	rows, err := global.DB.Query(`
-        SELECT id, proxy_url, ip_address, upload_time, filename, is_active, view_count
+        SELECT id, proxy_url, ip_address, upload_time, filename, is_active, view_count, content_type
         FROM images 
         ORDER BY upload_time DESC
         LIMIT ? OFFSET ?
@@ -565,7 +565,7 @@ func HandleAdmin(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var img ImageRecord
 		err := rows.Scan(&img.ID, &img.ProxyURL, &img.IPAddress, &img.UploadTime,
-			&img.Filename, &img.IsActive, &img.ViewCount)
+			&img.Filename, &img.IsActive, &img.ViewCount, &img.ContentType)
 		if err != nil {
 			continue
 		}

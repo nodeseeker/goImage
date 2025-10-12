@@ -122,6 +122,24 @@
             background-color: #f8f9fa;
         }
 
+        /* 访问链接样式 */
+        table a {
+            color: var(--primary-color);
+            text-decoration: none;
+            transition: all 0.3s ease;
+            word-break: break-all;
+            display: inline-block;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        table a:hover {
+            color: var(--primary-hover);
+            text-decoration: underline;
+        }
+
         .inactive {
             background-color: #fff5f5;
         }
@@ -225,6 +243,165 @@
                 color: #666;
             }
         }
+
+        /* 缩略图样式 */
+        .thumbnail-cell {
+            width: 80px;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .thumbnail-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        .thumbnail {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid #ddd;
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+        }
+
+        .thumbnail:hover {
+            transform: scale(1.15);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            border-color: var(--primary-color);
+            z-index: 10;
+        }
+
+        .thumbnail[data-loading="true"] {
+            animation: loading 1.5s infinite;
+        }
+
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* GIF动图标识 */
+        .gif-badge::after {
+            content: 'GIF';
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            background: rgba(74, 144, 226, 0.9);
+            color: white;
+            padding: 2px 6px;
+            font-size: 10px;
+            font-weight: bold;
+            border-radius: 3px;
+            pointer-events: none;
+        }
+
+        /* 已删除图片样式 */
+        .inactive .thumbnail {
+            filter: grayscale(100%) opacity(0.5);
+            border-color: #999;
+        }
+
+        /* 图片灯箱 */
+        .lightbox {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.95);
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.3s;
+        }
+
+        .lightbox.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .lightbox-content {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+            animation: zoomIn 0.3s;
+        }
+
+        @keyframes zoomIn {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .lightbox-close {
+            position: absolute;
+            top: 20px;
+            right: 40px;
+            color: white;
+            font-size: 50px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            line-height: 1;
+            user-select: none;
+        }
+
+        .lightbox-close:hover {
+            color: var(--primary-color);
+            transform: rotate(90deg);
+        }
+
+        .lightbox-info {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+
+        /* 移动端优化 */
+        @media (max-width: 768px) {
+            .thumbnail-cell {
+                width: 60px;
+            }
+            
+            .thumbnail {
+                width: 50px;
+                height: 50px;
+            }
+
+            .lightbox-close {
+                top: 10px;
+                right: 20px;
+                font-size: 40px;
+            }
+
+            .lightbox-content {
+                max-width: 95%;
+                max-height: 95%;
+            }
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .thumbnail {
+                border-color: #555;
+                background: linear-gradient(90deg, #2a2a2a 25%, #1a1a1a 50%, #2a2a2a 75%);
+            }
+        }
     </style>
 </head>
 <body>
@@ -240,6 +417,7 @@
         <table>
             <thead>
                 <tr>
+                    <th>缩略图</th>
                     <th>ID</th>
                     <th>文件名</th>
                     <th>访问链接</th>
@@ -253,13 +431,38 @@
             <tbody>
                 {{range .Images}}
                 <tr {{if not .IsActive}}class="inactive"{{end}}>
+                    <td class="thumbnail-cell">
+                        {{if eq .ContentType "image/gif"}}
+                            <div class="thumbnail-wrapper gif-badge">
+                                <img src="{{.ProxyURL}}" 
+                                     alt="{{.Filename}}" 
+                                     class="thumbnail" 
+                                     loading="lazy"
+                                     data-loading="true"
+                                     onload="this.removeAttribute('data-loading')"
+                                     onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%2250%22 x=%2250%22 text-anchor=%22middle%22 font-size=%2230%22%3E%E2%9D%8C%3C/text%3E%3C/svg%3E'; this.removeAttribute('data-loading')"
+                                     onclick="openLightbox('{{.ProxyURL}}', '{{.Filename}}')">
+                            </div>
+                        {{else}}
+                            <div class="thumbnail-wrapper">
+                                <img src="{{.ProxyURL}}" 
+                                     alt="{{.Filename}}" 
+                                     class="thumbnail" 
+                                     loading="lazy"
+                                     data-loading="true"
+                                     onload="this.removeAttribute('data-loading')"
+                                     onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%2250%22 x=%2250%22 text-anchor=%22middle%22 font-size=%2230%22%3E%E2%9D%8C%3C/text%3E%3C/svg%3E'; this.removeAttribute('data-loading')"
+                                     onclick="openLightbox('{{.ProxyURL}}', '{{.Filename}}')">
+                            </div>
+                        {{end}}
+                    </td>
                     <td>{{.ID}}</td>
-                    <td>{{.Filename}}</td>
+                    <td title="{{.Filename}}">{{.Filename}}</td>
                     <td><a href="{{.ProxyURL}}" target="_blank">{{.ProxyURL}}</a></td>
                     <td>{{.IPAddress}}</td>
                     <td>{{.UploadTime}}</td>
                     <td>{{.ViewCount}}</td>
-                    <td>{{if .IsActive}}活跃{{else}}已删除{{end}}</td>
+                    <td>{{if .IsActive}}✓ 活跃{{else}}✗ 已删除{{end}}</td>
                     <td>
                         <button onclick="toggleStatus({{.ID}})" 
                             class="action-button {{if .IsActive}}delete-button{{else}}restore-button{{end}}">
@@ -288,11 +491,62 @@
         </div>
     </div>
 
+    <!-- 图片灯箱 -->
+    <div id="lightbox" class="lightbox" onclick="closeLightbox()">
+        <span class="lightbox-close" onclick="closeLightbox()">&times;</span>
+        <img id="lightbox-img" class="lightbox-content" onclick="event.stopPropagation()">
+        <div id="lightbox-info" class="lightbox-info"></div>
+    </div>
+
     <script>
         function toggleStatus(id) {
             fetch('/admin/toggle/' + id, {method: 'POST'})
                 .then(() => location.reload());
         }
+
+        // 打开灯箱查看大图
+        function openLightbox(url, filename) {
+            event.stopPropagation();
+            const lightbox = document.getElementById('lightbox');
+            const img = document.getElementById('lightbox-img');
+            const info = document.getElementById('lightbox-info');
+            
+            img.src = url;
+            info.textContent = filename || '图片预览';
+            lightbox.classList.add('active');
+            
+            // 阻止页面滚动
+            document.body.style.overflow = 'hidden';
+        }
+
+        // 关闭灯箱
+        function closeLightbox() {
+            const lightbox = document.getElementById('lightbox');
+            lightbox.classList.remove('active');
+            
+            // 恢复页面滚动
+            document.body.style.overflow = '';
+        }
+
+        // ESC键关闭灯箱
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' || e.key === 'Esc') {
+                closeLightbox();
+            }
+        });
+
+        // 防止灯箱内图片点击冒泡关闭灯箱
+        document.getElementById('lightbox-img').addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+
+        // 优化：预加载第一张图片的缩略图
+        window.addEventListener('load', function() {
+            const firstThumbnail = document.querySelector('.thumbnail');
+            if (firstThumbnail && firstThumbnail.complete) {
+                firstThumbnail.removeAttribute('data-loading');
+            }
+        });
     </script>
 </body>
 </html>
