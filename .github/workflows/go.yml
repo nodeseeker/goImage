@@ -1,0 +1,135 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: '版本号 (例如: v0.1.5)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: linux
+            goarch: loong64
+          - goos: linux
+            goarch: riscv64
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+      
+      - name: Get build time
+        id: build_time
+        run: echo "time=$(date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_OUTPUT
+      
+      - name: Build binary
+        env:
+          CGO_ENABLED: 0
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          APP_NAME="imagehosting"
+          BUILD_TIME="${{ steps.build_time.outputs.time }}"
+          LDFLAGS="-s -w -X 'main.buildTime=$BUILD_TIME'"
+          
+          OUTPUT_NAME="${APP_NAME}-server-${{ matrix.goos }}-${{ matrix.goarch }}"
+          
+          echo "Building for ${{ matrix.goos }}/${{ matrix.goarch }}..."
+          go build -trimpath -ldflags "$LDFLAGS" -o "${OUTPUT_NAME}" ./cmd/server
+          
+          echo "Creating zip archive..."
+          zip "${OUTPUT_NAME}.zip" "${OUTPUT_NAME}"
+          
+          echo "Generating SHA256 checksum..."
+          sha256sum "${OUTPUT_NAME}.zip" > "${OUTPUT_NAME}.zip.sha256"
+          
+          echo "Build completed successfully!"
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: imagehosting-server-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            *.zip
+            *.sha256
+          retention-days: 7
+  
+  create-release:
+    name: Create Release
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          find artifacts -name "*.zip" -exec cp {} release/ \;
+          find artifacts -name "*.sha256" -exec cp {} release/ \;
+          
+          cd release
+          echo "Creating combined SHA256SUMS.txt..."
+          cat *.sha256 > SHA256SUMS.txt
+          rm -f *.sha256
+          
+          echo "Release files:"
+          ls -lh
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ inputs.tag_name }}
+          name: Release ${{ inputs.tag_name }}
+          draft: false
+          prerelease: false
+          files: release/*
+          body: |
+            ## 图床服务器 ${{ inputs.tag_name }}
+            
+            ### 编译信息
+            - 编译时间: ${{ steps.build_time.outputs.time }}
+            - Go 版本: 1.25
+            - CGO: 禁用
+            
+            ### 支持平台
+            - Linux AMD64
+            - Linux ARM64
+            - Linux LoongArch64
+            - Linux RISC-V 64
+            
+            ### 安装说明
+            1. 下载对应平台的压缩包
+            2. 解压: `unzip imagehosting-server-*-*.zip`
+            3. 赋予执行权限: `chmod +x imagehosting-server-*-*`
+            4. 运行: `./imagehosting-server-*-*`
+            
+            ### 校验和
+            请使用 SHA256SUMS.txt 文件验证下载文件的完整性：
+            ```bash
+            sha256sum -c SHA256SUMS.txt
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -2,10 +2,12 @@
 
 # 设置程序名称和版本
 APP_NAME="imagehosting"
-VERSION="0.1.4"
+VERSION="0.1.5"
 SERVER_PATH="./cmd/server"
 CLIENT_PATH="./cmd/client"
 OUTPUT_DIR="./bin"
+# 禁用 CGO，使构建更易于交叉编译并生成纯静态二进制
+export CGO_ENABLED=0
 
 # 创建输出目录
 mkdir -p $OUTPUT_DIR
@@ -38,18 +40,7 @@ SERVER_PLATFORMS=(
     "linux/riscv64"
 )
 
-# 客户端平台列表（增加Windows和macOS支持）
-CLIENT_PLATFORMS=(
-    "linux/amd64"
-    "linux/arm64"
-    "linux/loong64"
-    "linux/riscv64"
-    "windows/amd64"
-    "windows/386"
-    "windows/arm64"
-    "darwin/amd64"
-    "darwin/arm64"
-)
+# 客户端编译已禁用 — 本脚本仅编译服务器端
 
 # 开始编译
 echo "🚀 开始编译 $APP_NAME v$VERSION..."
@@ -84,35 +75,8 @@ for PLATFORM in "${SERVER_PLATFORMS[@]}"; do
     fi
 done
 
-# 编译客户端
-echo "📱 编译客户端..."
-for PLATFORM in "${CLIENT_PLATFORMS[@]}"; do
-    GOOS=${PLATFORM%/*}
-    GOARCH=${PLATFORM#*/}
-    
-    CLIENT_OUTPUT="$OUTPUT_DIR/${APP_NAME}-client-$GOOS-$GOARCH"
-    CLIENT_ZIP_NAME="${APP_NAME}-client-$GOOS-$GOARCH.zip"
-    
-    if [ $GOOS = "windows" ]; then
-        CLIENT_OUTPUT="${CLIENT_OUTPUT}.exe"
-    fi
-    
-    echo "📦 编译客户端 $GOOS/$GOARCH..."
-    
-    # 编译客户端
-    env GOOS=$GOOS GOARCH=$GOARCH go build -trimpath -ldflags "$LDFLAGS" -o $CLIENT_OUTPUT $CLIENT_PATH
-    CLIENT_SUCCESS=$?
-    
-    if [ $CLIENT_SUCCESS -ne 0 ]; then
-        echo "❌ 客户端编译失败: $GOOS/$GOARCH"
-    else
-        echo "✅ 客户端编译成功: $GOOS/$GOARCH"
-        
-        # 创建ZIP文件
-        echo "📦 打包客户端为 $CLIENT_ZIP_NAME..."
-        (cd $OUTPUT_DIR && zip -j "$CLIENT_ZIP_NAME" "$(basename $CLIENT_OUTPUT)" && echo "✅ 客户端打包完成: $OUTPUT_DIR/$CLIENT_ZIP_NAME") || echo "❌ 客户端打包失败: $CLIENT_ZIP_NAME"
-    fi
-done
+# 已跳过客户端编译（如果需要，可在未来启用）
+echo "ℹ️ 跳过客户端编译。"
 
 # 计算SHA256校验和
 echo "🔐 生成校验和文件..."
