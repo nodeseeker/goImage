@@ -274,7 +274,27 @@ func HandleImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !isActive {
-		http.Error(w, "Image has been deleted", http.StatusGone)
+		// 尝试读取占位图片
+		deletedImage, err := os.ReadFile("templates/deleted.jpg")
+		if err != nil {
+			// 降级处理：占位图片不存在时返回错误
+			log.Printf("Failed to read deleted placeholder image: %v", err)
+			http.Error(w, "Image has been deleted", http.StatusGone)
+			return
+		}
+
+		// 设置响应头
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.Header().Set("Content-Length", strconv.Itoa(len(deletedImage)))
+		w.Header().Set("Cache-Control", "public, max-age=86400") // 缓存1天
+		w.Header().Set("X-Image-Status", "deleted")              // 标识图片状态
+
+		// 返回占位图片
+		w.WriteHeader(http.StatusOK)
+		w.Write(deletedImage)
+
+		// 记录访问已删除图片的日志
+		log.Printf("Served deleted placeholder for UUID: %s", uuid)
 		return
 	}
 
