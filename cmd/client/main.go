@@ -40,6 +40,7 @@ func main() {
 	var (
 		url       = flag.String("url", "", "图床服务器API地址 (例如: https://img.example.com/api/v1/upload)")
 		filePath  = flag.String("file", "", "要上传的图片文件路径")
+		apiKey    = flag.String("key", "", "API密钥 (如果服务器需要认证)")
 		timeout   = flag.Int("timeout", 60, "上传超时时间(秒)")
 		showHelp  = flag.Bool("help", false, "显示帮助信息")
 		showVer   = flag.Bool("version", false, "显示版本信息")
@@ -54,6 +55,7 @@ func main() {
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\n示例:\n")
 		fmt.Fprintf(os.Stderr, "  client -url https://img.example.com/api/v1/upload -file ./image.jpg\n")
+		fmt.Fprintf(os.Stderr, "  client -url https://img.example.com/api/v1/upload -file ./image.jpg -key your-api-key\n")
 	}
 
 	// 解析命令行参数
@@ -108,7 +110,7 @@ func main() {
 	}
 
 	// 上传图片
-	result, err := uploadImage(*url, *filePath, *timeout, *verbosity)
+	result, err := uploadImage(*url, *filePath, *apiKey, *timeout, *verbosity)
 	if err != nil {
 		log.Fatalf("上传失败: %v", err)
 	}
@@ -125,9 +127,12 @@ func main() {
 }
 
 // uploadImage 上传图片到服务器
-func uploadImage(serverURL, imagePath string, timeoutSeconds int, verbose bool) (*ImageResponse, error) {
+func uploadImage(serverURL, imagePath, apiKey string, timeoutSeconds int, verbose bool) (*ImageResponse, error) {
 	if verbose {
 		log.Printf("准备上传文件: %s 到 %s", imagePath, serverURL)
+		if apiKey != "" {
+			log.Printf("使用API密钥认证")
+		}
 	}
 
 	// 打开文件
@@ -176,6 +181,11 @@ func uploadImage(serverURL, imagePath string, timeoutSeconds int, verbose bool) 
 	// 设置请求头
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("User-Agent", fmt.Sprintf("GoImage-Client/%s", VERSION))
+
+	// 如果提供了 API Key，添加到请求头
+	if apiKey != "" {
+		req.Header.Set("X-API-Key", apiKey)
+	}
 
 	// 发送请求
 	client := &http.Client{

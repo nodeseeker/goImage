@@ -28,7 +28,9 @@
         },
         "allowedHosts": ["localhost", "127.0.0.1"],
         "sessionSecret": "",
-        "statusKey": "nodeseek_status"
+        "statusKey": "nodeseek_status",
+        "apiKeys": ["your-secret-api-key-here"],
+        "requireAPIKey": false
     },
     "environment": "development"
 }

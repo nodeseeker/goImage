@@ -116,7 +116,7 @@ func main() {
 
 	// RESTful API 路由
 	apiRouter := r.PathPrefix("/api/v1").Subrouter()
-	apiRouter.HandleFunc("/upload", handlers.HandleAPIUpload).Methods("POST", "OPTIONS")
+	apiRouter.HandleFunc("/upload", middleware.RequireAPIKey(handlers.HandleAPIUpload)).Methods("POST", "OPTIONS")
 	apiRouter.HandleFunc("/health", handlers.HandleAPIHealthCheck).Methods("GET")
 
 	// 状态监控和健康检查路由

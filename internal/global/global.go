@@ -85,6 +85,8 @@ type Config struct {
 		AllowedHosts  []string `json:"allowedHosts"`
 		SessionSecret string   `json:"sessionSecret"` // session secret 配置
 		StatusKey     string   `json:"statusKey"`     // 状态页面访问密钥
+		APIKeys       []string `json:"apiKeys"`       // API 密钥列表
+		RequireAPIKey bool     `json:"requireAPIKey"` // 是否强制要求 API Key
 	} `json:"security"`
 	Environment string `json:"environment"` // 可选值: "development" 或 "production"
 }
