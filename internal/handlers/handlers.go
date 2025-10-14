@@ -275,7 +275,7 @@ func HandleImage(w http.ResponseWriter, r *http.Request) {
 
 	if !isActive {
 		// 尝试读取占位图片
-		deletedImage, err := os.ReadFile("templates/deleted.jpg")
+		deletedImage, err := os.ReadFile("static/deleted.jpg")
 		if err != nil {
 			// 降级处理：占位图片不存在时返回错误
 			log.Printf("Failed to read deleted placeholder image: %v", err)

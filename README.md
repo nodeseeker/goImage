@@ -200,6 +200,86 @@ server {
 }
 ```
 
+## API Key 生成与管理
+
+如果启用 API 认证功能，需要先生成 API Key。
+
+### 生成 API Key
+
+项目提供了专门的 API Key 生成工具：
+
+1. **下载生成工具**：
+   从 [releases页面](https://github.com/nodeseeker/goImage/releases) 下载 `generate_apikey` 工具，或使用源码编译：
+
+```bash
+cd /opt/imagehosting/tools
+go build -o generate_apikey generate_apikey.go
+```
+
+2. **生成密钥**：
+
+```bash
+# 生成一个密钥（默认32字节）
+./generate_apikey
+
+# 生成5个密钥
+./generate_apikey -count 5
+
+# 生成64字节的密钥
+./generate_apikey -length 64
+```
+
+生成示例：
+```
+生成 1 个 API 密钥 (长度: 32 字节):
+
+1. Xy9kP2mN5rQ8sT1vW4zB7cD0fG3hJ6kL
+
+使用说明:
+1. 将生成的密钥添加到 config.json 的 security.apiKeys 数组中
+2. 设置 security.requireAPIKey 为 true 以启用API认证
+3. 客户端使用 -key 参数传递API密钥
+```
+
+### 配置 API Key
+
+编辑 `/opt/imagehosting/config.json`，在 `security` 部分添加生成的密钥：
+
+```json
+{
+  "security": {
+    "requireAPIKey": true,
+    "apiKeys": [
+      "Xy9kP2mN5rQ8sT1vW4zB7cD0fG3hJ6kL",
+      "Another-API-Key-If-Needed"
+    ],
+    "rateLimit": {
+      "enabled": true,
+      "limit": 60,
+      "window": "1m"
+    }
+  }
+}
+```
+
+### API Key 管理最佳实践
+
+1. **定期轮换**：建议定期更换 API Key
+2. **多密钥策略**：可以为不同的用户或应用分配不同的密钥
+3. **安全存储**：不要将 API Key 提交到版本控制系统
+4. **及时撤销**：当密钥泄露时，立即从配置中删除并重启服务
+5. **密钥长度**：推荐使用至少 32 字节的密钥长度
+
+### 启用/禁用 API 认证
+
+- **启用认证**：设置 `security.requireAPIKey` 为 `true`
+- **禁用认证**：设置 `security.requireAPIKey` 为 `false`（默认）
+
+修改配置后需要重启服务：
+```bash
+sudo systemctl restart imagehosting
+```
+
 ## 启动和维护
 
 1. 启动服务：
@@ -220,9 +300,12 @@ sudo journalctl -u imagehosting -f # 查看服务日志
 ## 安全建议
 
 1. **API 访问控制**：
-   - 考虑在 Nginx 中限制 API 访问来源
-   - 可以为 API 添加额外的认证机制
-   - 监控 API 使用情况，防止滥用
+   - **强烈建议启用 API Key 认证**（设置 `security.requireAPIKey` 为 `true`）
+   - 使用 API Key 生成工具生成强随机密钥（至少 32 字节）
+   - 为不同的客户端或用户分配不同的 API Key，便于追踪和管理
+   - 考虑在 Nginx 中限制 API 访问来源（IP 白名单）
+   - 定期轮换 API Key，降低密钥泄露风险
+   - 监控 API 使用情况，通过日志追踪未授权访问尝试
 
 2. **文件类型验证**：
    - 服务器会验证上传的文件类型，只允许图片格式
@@ -232,12 +315,19 @@ sudo journalctl -u imagehosting -f # 查看服务日志
    - 合理设置 `site.maxFileSize` 参数
    - 保持 Nginx 的 `client_max_body_size` 稍大于程序配置值
 
+4. **速率限制**：
+   - 启用内置速率限制功能（`security.rateLimit.enabled` 设为 `true`）
+   - 根据实际需求调整速率限制参数
+   - 结合 Nginx 的速率限制功能实现多层防护
+
 ## 更新日志
 - 2024-12-22：v0.0.1 初始版本发布
 - 2025-02-20：v0.1.0 修复telegram的URL有效期失效bug，与此前的预发布版本数据库不兼容，需要全新安装
 - 2025-04-11：v0.1.1 新增从剪贴板上传图片功能，支持多架构Linux系统
 - 2025-05-21：v0.1.2 一大堆性能优化
 - 2025-05-22：v0.1.3 新增RESTful API接口和独立的命令行客户端工具，服务端和客户端分离
+- 2025-06-29：v0.1.4 修复WebP在telegram channel中被错误识别
+- 2025-10-14：v0.1.5 新增缩略图功能
 
 ## 常见问题
 
@@ -256,8 +346,12 @@ sudo journalctl -u imagehosting -f # 查看服务日志
    - 修改程序配置文件中的 `site.maxFileSize` 参数
 
 4. API 相关问题：
+   - **认证失败**：确保 API Key 正确配置在 `config.json` 的 `security.apiKeys` 数组中
+   - **未授权错误**：检查客户端是否使用 `-key` 参数传递了正确的 API Key
+   - **API Key 不工作**：修改配置后需要重启服务（`sudo systemctl restart imagehosting`）
    - 检查 API 端点是否正确配置
    - 在使用客户端时，确保 API URL 完整且正确
+   - 查看服务日志以获取详细的认证失败信息
 
 5. 已知bug：
    - 登录时，输入错误的用户名或密码将提示`Invalid credentials`，需要在新标签页再次打开登录页面.直接在原先标签页刷新，将一直报错`Invalid credentials`。
@@ -334,6 +428,18 @@ chmod +x imagehosting-client-darwin-amd64
 imagehosting-client-windows-amd64.exe -url https://img.example.com/api/v1/upload -file C:\path\to\image.jpg
 ```
 
+使用 API Key 认证（当服务器启用认证时）：
+
+**Linux/macOS**:
+```bash
+./imagehosting-client-linux-amd64 -url https://img.example.com/api/v1/upload -file /path/to/image.jpg -key your-api-key
+```
+
+**Windows**:
+```bash
+imagehosting-client-windows-amd64.exe -url https://img.example.com/api/v1/upload -file C:\path\to\image.jpg -key your-api-key
+```
+
 启用详细输出：
 
 **Linux/macOS**:
@@ -376,6 +482,7 @@ imagehosting-client-windows-amd64.exe -help
 |------|------|------|------|
 | `-url` | 图床服务器API地址 | 是 | - |
 | `-file` | 要上传的图片文件路径 | 是 | - |
+| `-key` | API认证密钥（服务器启用认证时必需） | 条件必填 | - |
 | `-timeout` | 上传超时时间(秒) | 否 | 60 |
 | `-verbose` | 显示详细输出 | 否 | false |
 | `-help` | 显示帮助信息 | 否 | false |
@@ -392,13 +499,52 @@ imagehosting-client-windows-amd64.exe -help
 
 goImage 服务器提供了标准的 RESTful API 接口，可以被任何支持 HTTP 请求的客户端或应用程序调用：
 
+### API 基本信息
+
 - **服务器端点**: `/api/v1/upload`
 - **方法**: `POST`
 - **Content-Type**: `multipart/form-data`
 - **参数**: `image` - 图片文件
 - **响应格式**: JSON
 - **跨域支持**: 默认启用，允许来自任何源的请求
-- **认证**: 当前版本的API端点不需要认证
+
+### API 认证
+
+goImage 支持基于 API Key 的认证机制，用于保护 API 端点免受未授权访问。
+
+**认证配置**（在 `config.json` 中）：
+```json
+{
+  "security": {
+    "requireAPIKey": false,
+    "apiKeys": [
+      "your-api-key-1",
+      "your-api-key-2"
+    ]
+  }
+}
+```
+
+- **`requireAPIKey`**: 设置为 `true` 启用 API 认证，`false` 则不需要认证（默认）
+- **`apiKeys`**: 允许的 API Key 列表，支持配置多个密钥
+
+**认证方式**：
+
+API Key 可以通过两种方式传递：
+
+1. **使用 `X-API-Key` 请求头**（推荐）：
+```bash
+curl -X POST https://your-domain.com/api/v1/upload \
+  -H "X-API-Key: your-api-key" \
+  -F "image=@/path/to/image.jpg"
+```
+
+2. **使用 `Authorization: Bearer` 请求头**：
+```bash
+curl -X POST https://your-domain.com/api/v1/upload \
+  -H "Authorization: Bearer your-api-key" \
+  -F "image=@/path/to/image.jpg"
+```
 
 成功响应示例：
 ```json
@@ -431,6 +577,7 @@ goImage 服务器提供了标准的 RESTful API 接口，可以被任何支持 H
 - "上传处理超时"
 - "服务器内部错误"
 - "存储处理失败"
+- "未授权：需要有效的API密钥" (当启用API认证时)
 
 ## 错误处理
 
@@ -474,7 +621,7 @@ goImage 服务器提供了标准的 RESTful API 接口，可以被任何支持 H
 如果您想将 GoImage 集成到您自己的应用中，可以通过 RESTful API 接口进行：
 
 ```python
-# Python 示例
+# Python 示例（不使用认证）
 import requests
 
 def upload_image(api_url, image_path):
@@ -488,8 +635,25 @@ result = upload_image('https://your-domain.com/api/v1/upload', 'path/to/image.jp
 print(result['data']['url'])  # 打印上传后的URL
 ```
 
+```python
+# Python 示例（使用 API Key 认证）
+import requests
+
+def upload_image_with_key(api_url, image_path, api_key):
+    with open(image_path, 'rb') as f:
+        files = {'image': f}
+        headers = {'X-API-Key': api_key}  # 或使用 'Authorization': f'Bearer {api_key}'
+        response = requests.post(api_url, files=files, headers=headers)
+    return response.json()
+
+# 使用方法
+api_key = 'your-api-key'
+result = upload_image_with_key('https://your-domain.com/api/v1/upload', 'path/to/image.jpg', api_key)
+print(result['data']['url'])
+```
+
 ```javascript
-// JavaScript 示例
+// JavaScript 示例（不使用认证）
 async function uploadImage(apiUrl, imageFile) {
   const formData = new FormData();
   formData.append('image', imageFile);
@@ -505,4 +669,47 @@ async function uploadImage(apiUrl, imageFile) {
 // 使用方法
 uploadImage('https://your-domain.com/api/v1/upload', fileInput.files[0])
   .then(result => console.log(result.data.url));
+```
+
+```javascript
+// JavaScript 示例（使用 API Key 认证）
+async function uploadImageWithKey(apiUrl, imageFile, apiKey) {
+  const formData = new FormData();
+  formData.append('image', imageFile);
+  
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'X-API-Key': apiKey  // 或使用 'Authorization': `Bearer ${apiKey}`
+    },
+    body: formData
+  });
+  
+  return await response.json();
+}
+
+// 使用方法
+const apiKey = 'your-api-key';
+uploadImageWithKey('https://your-domain.com/api/v1/upload', fileInput.files[0], apiKey)
+  .then(result => console.log(result.data.url));
+```
+
+```bash
+# cURL 示例（不使用认证）
+curl -X POST https://your-domain.com/api/v1/upload \
+  -F "image=@/path/to/image.jpg"
+```
+
+```bash
+# cURL 示例（使用 API Key 认证 - X-API-Key 方式）
+curl -X POST https://your-domain.com/api/v1/upload \
+  -H "X-API-Key: your-api-key" \
+  -F "image=@/path/to/image.jpg"
+```
+
+```bash
+# cURL 示例（使用 API Key 认证 - Bearer Token 方式）
+curl -X POST https://your-domain.com/api/v1/upload \
+  -H "Authorization: Bearer your-api-key" \
+  -F "image=@/path/to/image.jpg"
 ```
