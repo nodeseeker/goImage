@@ -116,7 +116,8 @@ sudo chmod 755 /opt/imagehosting/imagehosting-server
         },
         "allowedHosts": ["localhost", "127.0.0.1"],
         "sessionSecret": "",
-        "statusKey": "nodeseek_status"
+        "statusKey": "nodeseek_status",
+        "requireLoginForUpload": false
     },
     "environment": "development"
 }
@@ -147,6 +148,7 @@ sudo chmod 755 /opt/imagehosting/imagehosting-server
 - `security.allowedHosts`：允许访问的主机名列表
 - `security.sessionSecret`：会话密钥，留空将自动生成
 - `security.statusKey`：状态页面访问密钥
+- `security.requireLoginForUpload`：是否要求登录后才能上传图片，true表示仅登录用户可上传，false表示所有用户都可上传（默认false）
 
 **环境配置**
 - `environment`：运行环境，"development"（开发环境）或"production"（生产环境）
