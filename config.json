@@ -33,5 +33,5 @@
         "requireAPIKey": false,
         "requireLoginForUpload": false
     },
-    "environment": "development"
+    "environment": "production"
 }

@@ -2,7 +2,7 @@
 
 # 设置程序名称和版本
 APP_NAME="imagehosting"
-VERSION="0.1.5"
+VERSION="0.1.6"
 SERVER_PATH="./cmd/server"
 CLIENT_PATH="./cmd/client"
 OUTPUT_DIR="./bin"
@@ -51,17 +51,17 @@ for PLATFORM in "${SERVER_PLATFORMS[@]}"; do
     GOOS=${PLATFORM%/*}
     GOARCH=${PLATFORM#*/}
     
-    SERVER_OUTPUT="$OUTPUT_DIR/${APP_NAME}-server-$GOOS-$GOARCH"
+    SERVER_BINARY="${APP_NAME}-server-$GOOS-$GOARCH"
     SERVER_ZIP_NAME="${APP_NAME}-server-$GOOS-$GOARCH.zip"
     
     if [ $GOOS = "windows" ]; then
-        SERVER_OUTPUT="${SERVER_OUTPUT}.exe"
+        SERVER_BINARY="${SERVER_BINARY}.exe"
     fi
     
     echo "📦 编译服务器 $GOOS/$GOARCH..."
     
     # 编译服务器
-    env GOOS=$GOOS GOARCH=$GOARCH go build -trimpath -ldflags "$LDFLAGS" -o $SERVER_OUTPUT $SERVER_PATH
+    env GOOS=$GOOS GOARCH=$GOARCH go build -trimpath -ldflags "$LDFLAGS" -o "$OUTPUT_DIR/$SERVER_BINARY" $SERVER_PATH
     SERVER_SUCCESS=$?
     
     if [ $SERVER_SUCCESS -ne 0 ]; then
@@ -69,9 +69,36 @@ for PLATFORM in "${SERVER_PLATFORMS[@]}"; do
     else
         echo "✅ 服务器编译成功: $GOOS/$GOARCH"
         
+        # 创建临时打包目录，模拟 /opt/imagehosting 结构
+        PACK_DIR="$OUTPUT_DIR/pack_temp"
+        rm -rf "$PACK_DIR"
+        mkdir -p "$PACK_DIR/imagehosting/static"
+        mkdir -p "$PACK_DIR/imagehosting/templates"
+        
+        # 复制服务器程序并重命名为 imagehosting
+        cp "$OUTPUT_DIR/$SERVER_BINARY" "$PACK_DIR/imagehosting/imagehosting"
+        
+        # 复制配置文件
+        cp ./config.json "$PACK_DIR/imagehosting/"
+        
+        # 复制静态文件
+        cp ./static/favicon.ico "$PACK_DIR/imagehosting/static/"
+        cp ./static/robots.txt "$PACK_DIR/imagehosting/static/"
+        cp ./static/deleted.jpg "$PACK_DIR/imagehosting/templates/"
+        
+        # 复制模板文件（保持 .tmpl 后缀）
+        cp ./templates/home.tmpl "$PACK_DIR/imagehosting/templates/"
+        cp ./templates/login.tmpl "$PACK_DIR/imagehosting/templates/"
+        cp ./templates/upload.tmpl "$PACK_DIR/imagehosting/templates/"
+        cp ./templates/admin.tmpl "$PACK_DIR/imagehosting/templates/"
+        
         # 创建ZIP文件
         echo "📦 打包服务器为 $SERVER_ZIP_NAME..."
-        (cd $OUTPUT_DIR && zip -j "$SERVER_ZIP_NAME" "$(basename $SERVER_OUTPUT)" && echo "✅ 服务器打包完成: $OUTPUT_DIR/$SERVER_ZIP_NAME") || echo "❌ 服务器打包失败: $SERVER_ZIP_NAME"
+        (cd "$PACK_DIR" && zip -r "../$SERVER_ZIP_NAME" imagehosting && echo "✅ 服务器打包完成: $OUTPUT_DIR/$SERVER_ZIP_NAME") || echo "❌ 服务器打包失败: $SERVER_ZIP_NAME"
+        
+        # 清理临时目录和二进制文件
+        rm -rf "$PACK_DIR"
+        rm -f "$OUTPUT_DIR/$SERVER_BINARY"
     fi
 done
 
@@ -82,10 +109,6 @@ echo "ℹ️ 跳过客户端编译。"
 echo "🔐 生成校验和文件..."
 (cd $OUTPUT_DIR && sha256sum *.zip > SHA256SUMS.txt)
 echo "✅ 校验和文件已生成: $OUTPUT_DIR/SHA256SUMS.txt"
-
-# 清理二进制文件，只保留zip包
-echo "🧹 清理编译文件，只保留zip包..."
-find $OUTPUT_DIR -type f -not -name "*.zip" -not -name "SHA256SUMS.txt" -delete
 
 echo "🎉 编译完成!"
 ls -la $OUTPUT_DIR
