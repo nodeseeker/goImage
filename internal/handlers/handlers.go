@@ -168,7 +168,8 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 	var message tgbotapi.Message
 	var fileID string
 
-	// 对于图片文件，使用NewPhoto发送以确保在Telegram中正确显示
+	// 对于图片文件（JPG/PNG/WebP），使用 NewPhoto 发送
+	// 注意：Telegram 会将动态 WebP 转为静态图片，这是 Telegram 的限制
 	if contentType == "image/jpeg" || contentType == "image/jpg" || contentType == "image/png" || contentType == "image/webp" {
 		photoMsg := tgbotapi.NewPhoto(global.AppConfig.Telegram.ChatID, tgbotapi.FilePath(tempFile.Name()))
 		message, err = global.Bot.Send(photoMsg)
@@ -181,7 +182,7 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 			fileID = message.Photo[len(message.Photo)-1].FileID
 		}
 	} else {
-		// 对于GIF等其他格式，仍使用Document方式
+		// 对于 GIF，使用 Document 方式
 		docMsg := tgbotapi.NewDocument(global.AppConfig.Telegram.ChatID, tgbotapi.FilePath(tempFile.Name()))
 		message, err = global.Bot.Send(docMsg)
 		if err != nil {
@@ -264,6 +265,18 @@ func GetTelegramFileURL(fileID string) (string, error) {
 func HandleImage(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	uuid := vars["uuid"]
+
+	// 设置 CORS 头部，允许其他网站嵌入图片
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Range")
+	w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, Accept-Ranges")
+
+	// 处理 OPTIONS 预检请求
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 
 	w.Header().Set("Cache-Control", "public, max-age=31536000")
 	w.Header().Set("Expires", time.Now().AddDate(1, 0, 0).UTC().Format(http.TimeFormat))
@@ -437,27 +450,27 @@ func HandleImage(w http.ResponseWriter, r *http.Request) {
 		actualContentType = "video/mp4"
 	}
 
+	// 设置响应头 - 必须在 WriteHeader 之前设置所有头部
+	w.Header().Set("Content-Type", actualContentType)
+
+	// 如果原始响应有内容长度，也设置它
+	if resp.ContentLength > 0 {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", resp.ContentLength))
+	}
+
 	// 设置响应状态码（如果是 Range 请求则为 206）
 	if resp.StatusCode == 206 {
-		w.WriteHeader(206)
-		// 转发 Range 相关的响应头
+		// 转发 Range 相关的响应头 - 在 WriteHeader 之前
 		if contentRange := resp.Header.Get("Content-Range"); contentRange != "" {
 			w.Header().Set("Content-Range", contentRange)
 		}
 		if acceptRanges := resp.Header.Get("Accept-Ranges"); acceptRanges != "" {
 			w.Header().Set("Accept-Ranges", acceptRanges)
 		}
+		w.WriteHeader(206)
 	} else {
 		// 对于普通请求，声明支持 Range 请求
 		w.Header().Set("Accept-Ranges", "bytes")
-	}
-
-	// 设置响应头
-	w.Header().Set("Content-Type", actualContentType)
-
-	// 如果原始响应有内容长度，也设置它
-	if resp.ContentLength > 0 {
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", resp.ContentLength))
 	}
 
 	// 对于 HEAD 请求，只返回头部信息，不返回文件内容

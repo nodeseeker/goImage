@@ -8,6 +8,7 @@
 - 支持管理员登录，查看上传记录和删除图片
 - 提供 RESTful API 接口，支持第三方集成
 - 包含独立的命令行客户端工具
+- 支持跨域资源共享（CORS），可嵌入其他网站使用
 
 
 ## 页面展示
@@ -252,6 +253,7 @@ sudo journalctl -u imagehosting -f # 查看服务日志
 - 2025-06-29：v0.1.4 修复WebP在telegram channel中被错误识别
 - 2025-10-14：v0.1.5 新增缩略图功能
 - 2025-12-07：v0.1.6 新增只允许已登录上传图片的功能
+- 2025-12-07：v0.1.7 新增跨域资源共享（CORS）支持，修复响应头设置顺序问题
 
 ## 常见问题
 
@@ -279,6 +281,22 @@ sudo journalctl -u imagehosting -f # 查看服务日志
 
 5. 已知bug：
    - 登录时，输入错误的用户名或密码将提示`Invalid credentials`，需要在新标签页再次打开登录页面.直接在原先标签页刷新，将一直报错`Invalid credentials`。
+
+6. 动态图片限制（Telegram 存储限制）：
+   - **动态 WebP**：上传后会被 Telegram 转换为静态图片，动画效果丢失
+   - **GIF**：上传后会被 Telegram 转换为 MP4 视频格式
+   - 这是 Telegram 服务端的固有行为，无法通过程序规避
+   - 如需完整支持动态图片，建议考虑其他存储方案（如 S3、Cloudflare R2 等）
+   - 静态图片（JPG/PNG/静态 WebP）不受影响，可正常显示
+
+7. 图片嵌入其他网站：
+   - 程序已支持 CORS，可在其他网站通过 `<img>` 标签嵌入图片
+   - 对于被转换为 MP4 的 GIF，需使用 `<video>` 标签播放：
+     ```html
+     <video autoplay loop muted playsinline>
+       <source src="https://your-domain.com/file/xxx.gif" type="video/mp4">
+     </video>
+     ```
   
 ---
 
