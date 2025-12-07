@@ -70,7 +70,7 @@ func main() {
 	global.Store = sessions.NewCookieStore(sessionSecret)
 	global.Store.Options = &sessions.Options{
 		Path:     "/",
-		MaxAge:   86400 * 7,
+		MaxAge:   86400 * 30, // 30 天
 		HttpOnly: true,
 		Secure:   !global.IsDevelopment, // 在开发环境下允许 HTTP
 		SameSite: http.SameSiteStrictMode,
