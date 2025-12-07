@@ -82,11 +82,12 @@ type Config struct {
 			Limit   int    `json:"limit"`
 			Window  string `json:"window"`
 		} `json:"rateLimit"`
-		AllowedHosts  []string `json:"allowedHosts"`
-		SessionSecret string   `json:"sessionSecret"` // session secret 配置
-		StatusKey     string   `json:"statusKey"`     // 状态页面访问密钥
-		APIKeys       []string `json:"apiKeys"`       // API 密钥列表
-		RequireAPIKey bool     `json:"requireAPIKey"` // 是否强制要求 API Key
+		AllowedHosts          []string `json:"allowedHosts"`
+		SessionSecret         string   `json:"sessionSecret"`         // session secret 配置
+		StatusKey             string   `json:"statusKey"`             // 状态页面访问密钥
+		APIKeys               []string `json:"apiKeys"`               // API 密钥列表
+		RequireAPIKey         bool     `json:"requireAPIKey"`         // 是否强制要求 API Key
+		RequireLoginForUpload bool     `json:"requireLoginForUpload"` // 是否要求登录才能上传
 	} `json:"security"`
 	Environment string `json:"environment"` // 可选值: "development" 或 "production"
 }

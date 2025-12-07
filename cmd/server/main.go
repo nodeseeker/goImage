@@ -106,7 +106,7 @@ func main() {
 
 	// 路由设置
 	r.HandleFunc("/", handlers.HandleHome).Methods("GET")
-	r.HandleFunc("/upload", handlers.HandleUpload).Methods("POST")
+	r.HandleFunc("/upload", middleware.RequireAuthForUpload(handlers.HandleUpload)).Methods("POST")
 	r.HandleFunc("/file/{uuid}", handlers.HandleImage).Methods("GET", "HEAD")
 	r.HandleFunc("/login", handlers.HandleLoginPage).Methods("GET")
 	r.HandleFunc("/login", handlers.HandleLogin).Methods("POST")

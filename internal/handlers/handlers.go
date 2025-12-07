@@ -42,14 +42,27 @@ func HandleHome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 检查用户登录状态
+	isLoggedIn := false
+	session, err := global.Store.Get(r, "admin-session")
+	if err == nil {
+		if auth, ok := session.Values["authenticated"].(bool); ok && auth {
+			isLoggedIn = true
+		}
+	}
+
 	data := struct {
-		Title       string
-		Favicon     string
-		MaxFileSize int
+		Title                 string
+		Favicon               string
+		MaxFileSize           int
+		RequireLoginForUpload bool
+		IsLoggedIn            bool
 	}{
-		Title:       utils.GetPageTitle("图床"),
-		Favicon:     global.AppConfig.Site.Favicon,
-		MaxFileSize: global.AppConfig.Site.MaxFileSize,
+		Title:                 utils.GetPageTitle("图床"),
+		Favicon:               global.AppConfig.Site.Favicon,
+		MaxFileSize:           global.AppConfig.Site.MaxFileSize,
+		RequireLoginForUpload: global.AppConfig.Security.RequireLoginForUpload,
+		IsLoggedIn:            isLoggedIn,
 	}
 	tmpl.Execute(w, data)
 }

@@ -30,7 +30,8 @@
         "sessionSecret": "",
         "statusKey": "nodeseek_status",
         "apiKeys": ["your-secret-api-key-here"],
-        "requireAPIKey": false
+        "requireAPIKey": false,
+        "requireLoginForUpload": false
     },
     "environment": "development"
 }

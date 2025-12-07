@@ -127,3 +127,34 @@ func maskAPIKey(key string) string {
 	}
 	return key[:4] + "****" + key[len(key)-4:]
 }
+
+// RequireAuthForUpload 根据配置决定是否需要登录才能上传
+// 如果配置了 requireLoginForUpload 为 true，则需要登录
+// 否则直接放行
+func RequireAuthForUpload(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// 如果未启用登录上传限制，直接放行
+		if !global.AppConfig.Security.RequireLoginForUpload {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// 需要验证登录状态
+		session, err := global.Store.Get(r, "admin-session")
+		if err != nil {
+			log.Printf("Error getting session in upload auth middleware: %v", err)
+			http.Error(w, `{"success":false,"message":"请先登录后再上传"}`, http.StatusUnauthorized)
+			return
+		}
+
+		auth, ok := session.Values["authenticated"].(bool)
+		if !ok || !auth {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"success":false,"message":"请先登录后再上传"}`))
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	}
+}

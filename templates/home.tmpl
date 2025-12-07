@@ -413,9 +413,36 @@
 
         <script>
             const maxFileSize = {{.MaxFileSize}} * 1024 * 1024; // 转换为字节
+            const requireLoginForUpload = {{.RequireLoginForUpload}};
+            const isLoggedIn = {{.IsLoggedIn}};
+
+            // 检查是否需要登录才能上传
+            function checkLoginRequired() {
+                if (requireLoginForUpload && !isLoggedIn) {
+                    showLoginAlert('此站点仅允许登录用户上传图片，请先登录');
+                    return false;
+                }
+                return true;
+            }
+
+            // 显示需要登录的提醒
+            function showLoginAlert(message) {
+                const alert = document.getElementById('alert');
+                alert.innerHTML = message + ' <a href="/login" style="color: white; text-decoration: underline;">点击登录</a>';
+                alert.style.display = 'block';
+                setTimeout(() => {
+                    alert.style.display = 'none';
+                }, 5000);
+            }
 
             // 显示选中的文件名
             document.getElementById('fileInput').addEventListener('change', function(e) {
+                // 先检查是否需要登录
+                if (!checkLoginRequired()) {
+                    this.value = ''; // 清除选择的文件
+                    return;
+                }
+
                 const file = e.target.files[0];
                 if (file) {
                     // 验证文件类型
@@ -452,6 +479,14 @@
 
             dropZone.addEventListener('drop', (e) => {
                 e.preventDefault();
+                dropZone.style.borderColor = '#4a90e2';
+                dropZone.style.backgroundColor = '#f8fbff';
+
+                // 先检查是否需要登录
+                if (!checkLoginRequired()) {
+                    return;
+                }
+
                 const files = e.dataTransfer.files;
                 if (files.length > 0) {
                     const file = files[0];
@@ -469,8 +504,6 @@
                     document.getElementById('fileInput').files = files;
                     document.querySelector('.upload-text').innerHTML = '已选择: ' + file.name;
                 }
-                dropZone.style.borderColor = '#4a90e2';
-                dropZone.style.backgroundColor = '#f8fbff';
             });
 
             // 添加剪贴板粘贴功能
@@ -488,6 +521,11 @@
                 
                 if (!imageFile) {
                     return; // 没有图片数据
+                }
+
+                // 先检查是否需要登录
+                if (!checkLoginRequired()) {
+                    return;
                 }
                 
                 // 验证文件类型
@@ -575,6 +613,12 @@
 
             function handleSubmit(event) {
                 event.preventDefault();
+
+                // 先检查是否需要登录
+                if (!checkLoginRequired()) {
+                    return false;
+                }
+
                 const fileInput = document.getElementById('fileInput');
                 
                 if (!fileInput.files || fileInput.files.length === 0) {
@@ -622,7 +666,22 @@
                     } else {
                         progressText.style.display = 'block';
                         document.getElementById('processingIndicator').style.display = 'none';
-                        progressText.textContent = '上传失败: ' + xhr.statusText;
+                        
+                        // 尝试解析 JSON 错误消息
+                        let errorMsg = xhr.statusText;
+                        try {
+                            const resp = JSON.parse(xhr.responseText);
+                            if (resp.message) {
+                                errorMsg = resp.message;
+                            }
+                        } catch(e) {}
+                        
+                        // 处理需要登录的情况
+                        if (xhr.status === 401) {
+                            progressText.innerHTML = errorMsg + ' <a href="/login" style="color: #4a90e2;">点击登录</a>';
+                        } else {
+                            progressText.textContent = '上传失败: ' + errorMsg;
+                        }
                         progressBar.style.backgroundColor = '#dc3545';
                     }
                 };
