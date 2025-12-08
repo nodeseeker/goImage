@@ -320,7 +320,7 @@ curl -X POST https://your-domain.com/api/v1/upload \
 
 从 v0.1.3 版本开始，GoImage 采用了服务器/客户端分离的架构：
 
-1. **服务器组件 (imagehosting-server)**:
+1. **服务器组件 (imagehosting)**:
    - 提供完整的 Web 界面
    - 负责图片存储和管理
    - 提供 RESTful API 接口

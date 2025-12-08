@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -26,6 +28,60 @@ import (
 )
 
 func main() {
+	// 解析命令行参数
+	var (
+		configPath = flag.String("config", "", "配置文件路径 (默认: ./config.json)")
+		workDir    = flag.String("workdir", "", "工作目录 (默认: 程序所在目录)")
+		showHelp   = flag.Bool("help", false, "显示帮助信息")
+		showVer    = flag.Bool("version", false, "显示版本信息")
+	)
+
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "GoImage 图床服务\n\n")
+		fmt.Fprintf(os.Stderr, "用法: imagehosting [选项]\n\n")
+		fmt.Fprintf(os.Stderr, "选项:\n")
+		flag.PrintDefaults()
+		fmt.Fprintf(os.Stderr, "\n示例:\n")
+		fmt.Fprintf(os.Stderr, "  imagehosting                                    # 使用默认配置\n")
+		fmt.Fprintf(os.Stderr, "  imagehosting -config /etc/goimage/config.json  # 指定配置文件\n")
+		fmt.Fprintf(os.Stderr, "  imagehosting -workdir /opt/goimage              # 指定工作目录\n")
+	}
+
+	flag.Parse()
+
+	if *showHelp {
+		flag.Usage()
+		os.Exit(0)
+	}
+
+	if *showVer {
+		fmt.Println("GoImage 图床服务 v0.1.7")
+		os.Exit(0)
+	}
+
+	// 处理工作目录
+	if *workDir != "" {
+		// 使用命令行指定的工作目录
+		absWorkDir, err := filepath.Abs(*workDir)
+		if err != nil {
+			log.Fatalf("无法解析工作目录: %v", err)
+		}
+		if err := os.Chdir(absWorkDir); err != nil {
+			log.Fatalf("无法切换到工作目录 %s: %v", absWorkDir, err)
+		}
+		log.Printf("工作目录已设置为: %s", absWorkDir)
+	}
+
+	// 处理配置文件路径
+	if *configPath != "" {
+		absConfigPath, err := filepath.Abs(*configPath)
+		if err != nil {
+			log.Fatalf("无法解析配置文件路径: %v", err)
+		}
+		global.ConfigFile = absConfigPath
+		log.Printf("使用配置文件: %s", absConfigPath)
+	}
+
 	// 初始化日志系统
 	if os.Getenv("DEBUG") == "true" {
 		logger.InitLogger(logger.DebugLevel)

@@ -175,7 +175,7 @@ Restart=always
 RestartSec=5
 User=root
 WorkingDirectory=/opt/imagehosting
-ExecStart=/opt/imagehosting/imagehosting-server
+ExecStart=/opt/imagehosting/imagehosting
 
 [Install]
 WantedBy=multi-user.target
@@ -205,6 +205,34 @@ server {
 ```
 
 ## 启动和维护
+
+### 命令行参数
+
+程序支持以下命令行参数：
+
+| 参数 | 说明 |
+|------|------|
+| `-config` | 指定配置文件的绝对或相对路径（默认: ./config.json） |
+| `-workdir` | 指定工作目录，程序会切换到该目录运行 |
+| `-help` | 显示帮助信息 |
+| `-version` | 显示版本信息 |
+
+**使用示例：**
+```bash
+# 使用默认配置（当前目录下的 config.json）
+./imagehosting
+
+# 指定配置文件路径
+./imagehosting -config /etc/goimage/config.json
+
+# 指定工作目录（templates/、static/ 等相对路径都基于此目录）
+./imagehosting -workdir /opt/imagehosting
+
+# 同时指定配置文件和工作目录
+./imagehosting -workdir /opt/imagehosting -config /etc/goimage/config.json
+```
+
+### Systemd 服务管理
 
 1. 启动服务：
 ```bash
