@@ -16,14 +16,7 @@ import (
 
 // InitR2 初始化 Cloudflare R2 客户端
 func InitR2() {
-	r2Resolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-		return aws.Endpoint{
-			URL: fmt.Sprintf("https://%s.r2.cloudflarestorage.com", global.AppConfig.R2.AccountID),
-		}, nil
-	})
-
 	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithEndpointResolverWithOptions(r2Resolver),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
 			global.AppConfig.R2.AccessKeyID,
 			global.AppConfig.R2.AccessKeySecret,
@@ -35,7 +28,10 @@ func InitR2() {
 		log.Fatal(err)
 	}
 
-	global.R2Client = s3.NewFromConfig(cfg)
+	// 使用 S3 客户端的 BaseEndpoint 选项设置 R2 端点
+	global.R2Client = s3.NewFromConfig(cfg, func(o *s3.Options) {
+		o.BaseEndpoint = aws.String(fmt.Sprintf("https://%s.r2.cloudflarestorage.com", global.AppConfig.R2.AccountID))
+	})
 	log.Println("R2 client initialized successfully")
 }
 
