@@ -17,7 +17,6 @@ var (
 	Store     *sessions.CookieStore // 移除初始化，将在 main 中进行
 
 	// 并发控制
-	UploadMutex     sync.Mutex    // 用于限制并发上传
 	UploadSemaphore chan struct{} // 用于限制并发上传
 
 	// 程序配置
@@ -36,21 +35,12 @@ var (
 		"image/webp": ".webp",
 	}
 
-	CurrentUploads int
-	IsDevelopment  = true // 添加开发环境标志
+	IsDevelopment = false // 开发环境标志，默认为生产环境
 
 	// URLCache 用于存储文件URL的缓存
 	URLCache     = make(map[string]*FileURLCache)
 	URLCacheMux  sync.RWMutex
 	URLCacheTime = 23 * time.Hour // Telegram URL 通常 24 小时过期
-)
-
-const (
-	ErrInvalidCredentials = "Invalid credentials"
-	ErrDatabaseOperation  = "Database operation failed"
-	ErrUploadFailed       = "Upload failed"
-	ErrFileTypeNotAllowed = "File type not allowed"
-	ErrFileTooLarge       = "File too large"
 )
 
 // Config 应用配置结构

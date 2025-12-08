@@ -274,7 +274,7 @@ func HandleAPIHealthCheck(w http.ResponseWriter, r *http.Request) {
 	response := APIResponse{
 		Success: true,
 		Message: "API服务正常",
-		Data: map[string]interface{}{
+		Data: map[string]any{
 			"version":   "1.0",
 			"status":    "operational",
 			"timestamp": time.Now().Format(time.RFC3339),

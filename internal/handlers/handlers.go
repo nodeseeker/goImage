@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"html/template"
 	"io"
 	"log"
 	"net/http"
@@ -18,6 +17,7 @@ import (
 
 	"hosting/internal/db"
 	"hosting/internal/global"
+	"hosting/internal/template"
 	"hosting/internal/utils"
 )
 
@@ -36,8 +36,8 @@ func handleError(w http.ResponseWriter, err *AppError) {
 
 // handleHome 使用 templates/home.html
 func HandleHome(w http.ResponseWriter, r *http.Request) {
-	tmpl, err := template.ParseFiles("templates/home.tmpl")
-	if err != nil {
+	tmpl, ok := template.GetTemplate("home")
+	if !ok {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
 	}
@@ -67,13 +67,10 @@ func HandleHome(w http.ResponseWriter, r *http.Request) {
 	tmpl.Execute(w, data)
 }
 
-// HandleUpload 精简说明
+// HandleUpload 处理图片上传
 func HandleUpload(w http.ResponseWriter, r *http.Request) {
-	// 添加请求追踪ID
+	// 添加请求追踪ID用于日志
 	requestID := uuid.New().String()
-	type contextKey string
-	const requestIDKey contextKey = "requestID"
-	ctx := context.WithValue(r.Context(), requestIDKey, requestID)
 
 	// 使用defer统一处理panic
 	defer func() {
@@ -84,7 +81,7 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// 使用context控制超时
-	ctx, cancel := context.WithTimeout(ctx, global.UploadTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), global.UploadTimeout)
 	defer cancel()
 	r = r.WithContext(ctx)
 
@@ -243,7 +240,11 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t := template.Must(template.ParseFiles("templates/upload.tmpl"))
+	t, ok := template.GetTemplate("upload")
+	if !ok {
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
 	data := struct {
 		Title    string
 		Favicon  string
@@ -507,7 +508,11 @@ func HandleLoginPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t := template.Must(template.ParseFiles("templates/login.tmpl"))
+	t, ok := template.GetTemplate("login")
+	if !ok {
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
 	data := struct {
 		Title   string
 		Favicon string
@@ -620,19 +625,9 @@ func HandleAdmin(w http.ResponseWriter, r *http.Request) {
 
 	totalPages := (total + pageSize - 1) / pageSize
 
-	funcMap := template.FuncMap{
-		"add": func(a, b int) int {
-			return a + b
-		},
-		"subtract": func(a, b int) int {
-			return a - b
-		},
-	}
-
-	t := template.New("admin.tmpl").Funcs(funcMap)
-	t, err = t.ParseFiles("templates/admin.tmpl")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	t, ok := template.GetTemplate("admin")
+	if !ok {
+		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
 	}
 
