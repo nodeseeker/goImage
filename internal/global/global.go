@@ -2,10 +2,9 @@ package global
 
 import (
 	"database/sql"
-	"sync"
 	"time"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gorilla/sessions"
 )
 
@@ -13,11 +12,10 @@ var (
 	// 全局变量
 	DB        *sql.DB
 	AppConfig Config
-	Bot       *tgbotapi.BotAPI
+	R2Client  *s3.Client            // R2 客户端
 	Store     *sessions.CookieStore // 移除初始化，将在 main 中进行
 
 	// 并发控制
-	UploadMutex     sync.Mutex    // 用于限制并发上传
 	UploadSemaphore chan struct{} // 用于限制并发上传
 
 	// 程序配置
@@ -35,30 +33,17 @@ var (
 		"image/gif":  ".gif",
 		"image/webp": ".webp",
 	}
-
-	CurrentUploads int
-	IsDevelopment  = true // 添加开发环境标志
-
-	// URLCache 用于存储文件URL的缓存
-	URLCache     = make(map[string]*FileURLCache)
-	URLCacheMux  sync.RWMutex
-	URLCacheTime = 23 * time.Hour // Telegram URL 通常 24 小时过期
-)
-
-const (
-	ErrInvalidCredentials = "Invalid credentials"
-	ErrDatabaseOperation  = "Database operation failed"
-	ErrUploadFailed       = "Upload failed"
-	ErrFileTypeNotAllowed = "File type not allowed"
-	ErrFileTooLarge       = "File too large"
 )
 
 // Config 应用配置结构
 type Config struct {
-	Telegram struct {
-		Token  string `json:"token"`
-		ChatID int64  `json:"chatId"`
-	} `json:"telegram"`
+	R2 struct {
+		AccountID       string `json:"accountId"`
+		AccessKeyID     string `json:"accessKeyId"`
+		AccessKeySecret string `json:"accessKeySecret"`
+		BucketName      string `json:"bucketName"`
+		PublicURL       string `json:"publicUrl"`
+	} `json:"r2"`
 	Admin struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -83,19 +68,14 @@ type Config struct {
 			Window  string `json:"window"`
 		} `json:"rateLimit"`
 		AllowedHosts          []string `json:"allowedHosts"`
-		SessionSecret         string   `json:"sessionSecret"`         // session secret 配置
-		StatusKey             string   `json:"statusKey"`             // 状态页面访问密钥
-		APIKeys               []string `json:"apiKeys"`               // API 密钥列表
-		RequireAPIKey         bool     `json:"requireAPIKey"`         // 是否强制要求 API Key
 		RequireLoginForUpload bool     `json:"requireLoginForUpload"` // 是否要求登录才能上传
 	} `json:"security"`
-	Environment string `json:"environment"` // 可选值: "development" 或 "production"
 }
 
 // ImageRecord 图片记录结构
 type ImageRecord struct {
 	ID          int
-	TelegramURL string
+	R2Key       string // R2 对象键名
 	ProxyURL    string
 	IPAddress   string
 	UserAgent   string
@@ -104,10 +84,4 @@ type ImageRecord struct {
 	ContentType string
 	IsActive    bool
 	ViewCount   int
-}
-
-// FileURLCache 用于缓存文件URL
-type FileURLCache struct {
-	URL       string
-	ExpiresAt time.Time
 }

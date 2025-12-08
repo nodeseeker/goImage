@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"html/template"
@@ -12,12 +11,12 @@ import (
 	"strconv"
 	"time"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 
 	"hosting/internal/db"
 	"hosting/internal/global"
+	"hosting/internal/r2"
 	"hosting/internal/utils"
 )
 
@@ -164,41 +163,21 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 根据文件类型选择发送方式
-	var message tgbotapi.Message
-	var fileID string
+	// 生成 R2 对象键名
+	proxyUUID := uuid.New().String()
+	r2Key := fmt.Sprintf("%s%s", proxyUUID, fileExt)
+	proxyURL := fmt.Sprintf("/file/%s%s", proxyUUID, fileExt)
 
-	// 对于图片文件（JPG/PNG/WebP），使用 NewPhoto 发送
-	// 注意：Telegram 会将动态 WebP 转为静态图片，这是 Telegram 的限制
-	if contentType == "image/jpeg" || contentType == "image/jpg" || contentType == "image/png" || contentType == "image/webp" {
-		photoMsg := tgbotapi.NewPhoto(global.AppConfig.Telegram.ChatID, tgbotapi.FilePath(tempFile.Name()))
-		message, err = global.Bot.Send(photoMsg)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		// 获取最大尺寸的照片文件ID
-		if len(message.Photo) > 0 {
-			fileID = message.Photo[len(message.Photo)-1].FileID
-		}
-	} else {
-		// 对于 GIF，使用 Document 方式
-		docMsg := tgbotapi.NewDocument(global.AppConfig.Telegram.ChatID, tgbotapi.FilePath(tempFile.Name()))
-		message, err = global.Bot.Send(docMsg)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		fileID = message.Document.FileID
-	}
-	telegramURL, err := global.Bot.GetFileDirectURL(fileID)
+	// 重新打开临时文件用于上传
+	tempFile.Seek(0, 0)
+
+	// 上传到 R2
+	err = r2.UploadFile(ctx, r2Key, tempFile, contentType)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("[%s] Failed to upload to R2: %v", requestID, err)
+		http.Error(w, "Failed to upload file", http.StatusInternalServerError)
 		return
 	}
-
-	proxyUUID := uuid.New().String()
-	proxyURL := fmt.Sprintf("/file/%s%s", proxyUUID, fileExt)
 
 	var scheme string
 	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
@@ -211,14 +190,13 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 	err = db.WithDBTimeout(func(ctx context.Context) error {
 		stmt, err := global.DB.PrepareContext(ctx, `
 			INSERT INTO images (
-				telegram_url, 
+				r2_key, 
 				proxy_url, 
 				ip_address, 
 				user_agent, 
 				filename,
-				content_type,
-				file_id
-			) VALUES (?, ?, ?, ?, ?, ?, ?)
+				content_type
+			) VALUES (?, ?, ?, ?, ?, ?)
 		`)
 		if err != nil {
 			return err
@@ -226,13 +204,12 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 		defer stmt.Close()
 
 		_, err = stmt.ExecContext(ctx,
-			telegramURL,
+			r2Key,
 			proxyURL,
 			ipAddress,
 			userAgent,
 			filename,
 			contentType,
-			fileID, // 添加 fileID
 		)
 		return err
 	})
@@ -258,10 +235,6 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 	t.Execute(w, data)
 }
 
-func GetTelegramFileURL(fileID string) (string, error) {
-	return global.Bot.GetFileDirectURL(fileID)
-}
-
 func HandleImage(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	uuid := vars["uuid"]
@@ -281,17 +254,16 @@ func HandleImage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=31536000")
 	w.Header().Set("Expires", time.Now().AddDate(1, 0, 0).UTC().Format(http.TimeFormat))
 
-	var telegramURL, contentType string
+	var r2Key, contentType string
 	var isActive bool
-	var fileID string
 
 	err := db.WithDBTimeout(func(ctx context.Context) error {
 		return global.DB.QueryRowContext(ctx, `
-            SELECT telegram_url, content_type, is_active, file_id 
+            SELECT r2_key, content_type, is_active 
             FROM images 
             WHERE proxy_url LIKE ?`,
 			fmt.Sprintf("/file/%s%%", uuid),
-		).Scan(&telegramURL, &contentType, &isActive, &fileID)
+		).Scan(&r2Key, &contentType, &isActive)
 	})
 
 	if err != nil {
@@ -324,153 +296,41 @@ func HandleImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 检查URL缓存
-	global.URLCacheMux.RLock()
-	cache, exists := global.URLCache[telegramURL]
-	global.URLCacheMux.RUnlock()
-
-	var currentURL string
-	if !exists || time.Now().After(cache.ExpiresAt) {
-		// 获取新的URL
-		newURL, err := GetTelegramFileURL(fileID)
-		if err != nil {
-			http.Error(w, "Failed to refresh file URL", http.StatusInternalServerError)
-			return
-		}
-
-		// 更新缓存
-		global.URLCacheMux.Lock()
-		global.URLCache[telegramURL] = &global.FileURLCache{
-			URL:       newURL,
-			ExpiresAt: time.Now().Add(global.URLCacheTime),
-		}
-		global.URLCacheMux.Unlock()
-
-		currentURL = newURL
-
-		// 更新数据库中的URL
-		err = db.WithDBTimeout(func(ctx context.Context) error {
-			tx, err := global.DB.BeginTx(ctx, nil)
-			if err != nil {
-				return err
-			}
-			defer func() {
-				if err != nil {
-					tx.Rollback()
-				}
-			}()
-
-			// 同时更新 telegram_url 和 view_count
-			_, err = tx.ExecContext(ctx,
-				"UPDATE images SET telegram_url = ?, view_count = view_count + 1 WHERE proxy_url LIKE ?",
-				newURL, fmt.Sprintf("/file/%s%%", uuid))
-			if err != nil {
-				return err
-			}
-
-			return tx.Commit()
-		})
-
-		if err != nil {
-			log.Printf("Failed to update database: %v", err)
-			// 继续处理请求，不返回错误给用户
-		}
-	} else {
-		currentURL = cache.URL
-
-		// 只更新访问计数
-		err = db.WithDBTimeout(func(ctx context.Context) error {
+	// 更新访问计数
+	go func() {
+		err := db.WithDBTimeout(func(ctx context.Context) error {
 			_, err := global.DB.ExecContext(ctx,
 				"UPDATE images SET view_count = view_count + 1 WHERE proxy_url LIKE ?",
 				fmt.Sprintf("/file/%s%%", uuid))
 			return err
 		})
-
 		if err != nil {
 			log.Printf("Failed to update view count: %v", err)
-			// 继续处理请求，不返回错误给用户
 		}
-	}
+	}()
 
-	// 创建一个带超时的客户端
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-
-	req, err := http.NewRequestWithContext(r.Context(), "GET", currentURL, nil)
+	// 从 R2 获取文件
+	rangeHeader := r.Header.Get("Range")
+	result, err := r2.GetFileWithRange(r.Context(), r2Key, rangeHeader)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("Failed to get file from R2: %v", err)
+		http.Error(w, "Failed to retrieve file", http.StatusInternalServerError)
 		return
 	}
+	defer result.Body.Close()
 
-	// 转发 Range 请求头（支持视频流播放）
-	if rangeHeader := r.Header.Get("Range"); rangeHeader != "" {
-		req.Header.Set("Range", rangeHeader)
+	// 设置响应头
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Accept-Ranges", "bytes")
+
+	if result.ContentLength != nil && *result.ContentLength > 0 {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", *result.ContentLength))
 	}
 
-	resp, err := client.Do(req)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer resp.Body.Close()
-
-	// 动态检测内容类型，特别是处理Telegram转换GIF为MP4的情况
-	actualContentType := contentType
-
-	// 只在非Range请求时进行内容检测，避免影响流播放
-	isRangeRequest := r.Header.Get("Range") != ""
-	needContentDetection := contentType == "image/gif" && !isRangeRequest
-
-	if needContentDetection {
-		// 读取前512字节用于内容类型检测
-		peekBuffer := make([]byte, 512)
-		n, _ := io.ReadAtLeast(resp.Body, peekBuffer, 512)
-		if n == 0 {
-			// 如果无法读取足够数据，回退到原始长度
-			n, _ = resp.Body.Read(peekBuffer)
-		}
-
-		// 检测实际内容类型
-		detectedType := http.DetectContentType(peekBuffer[:n])
-
-		// 如果检测到是MP4格式，则使用实际的内容类型
-		if detectedType == "video/mp4" {
-			actualContentType = "video/mp4"
-			log.Printf("GIF file converted to MP4 by Telegram, updating content type")
-		}
-
-		// 创建包含原始内容的新reader
-		resp.Body = io.NopCloser(io.MultiReader(
-			bytes.NewReader(peekBuffer[:n]),
-			resp.Body,
-		))
-	} else if contentType == "image/gif" {
-		// 对于Range请求，直接假设是MP4（避免破坏流）
-		actualContentType = "video/mp4"
-	}
-
-	// 设置响应头 - 必须在 WriteHeader 之前设置所有头部
-	w.Header().Set("Content-Type", actualContentType)
-
-	// 如果原始响应有内容长度，也设置它
-	if resp.ContentLength > 0 {
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", resp.ContentLength))
-	}
-
-	// 设置响应状态码（如果是 Range 请求则为 206）
-	if resp.StatusCode == 206 {
-		// 转发 Range 相关的响应头 - 在 WriteHeader 之前
-		if contentRange := resp.Header.Get("Content-Range"); contentRange != "" {
-			w.Header().Set("Content-Range", contentRange)
-		}
-		if acceptRanges := resp.Header.Get("Accept-Ranges"); acceptRanges != "" {
-			w.Header().Set("Accept-Ranges", acceptRanges)
-		}
-		w.WriteHeader(206)
-	} else {
-		// 对于普通请求，声明支持 Range 请求
-		w.Header().Set("Accept-Ranges", "bytes")
+	// 处理 Range 请求响应
+	if result.ContentRange != nil && *result.ContentRange != "" {
+		w.Header().Set("Content-Range", *result.ContentRange)
+		w.WriteHeader(http.StatusPartialContent)
 	}
 
 	// 对于 HEAD 请求，只返回头部信息，不返回文件内容
@@ -480,7 +340,7 @@ func HandleImage(w http.ResponseWriter, r *http.Request) {
 
 	// 流式拷贝数据
 	buf := make([]byte, 32*1024) // 32KB 缓冲区
-	_, err = io.CopyBuffer(w, resp.Body, buf)
+	_, err = io.CopyBuffer(w, result.Body, buf)
 	if err != nil {
 		log.Printf("Error streaming file: %v", err)
 	}

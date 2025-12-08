@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"log"
 	"net/http"
@@ -21,8 +20,7 @@ import (
 	"hosting/internal/handlers"
 	"hosting/internal/logger"
 	"hosting/internal/middleware"
-	"hosting/internal/telegram"
-	"hosting/internal/template"
+	"hosting/internal/r2"
 )
 
 func main() {
@@ -42,37 +40,23 @@ func main() {
 	db.InitDB()
 	logger.Info("数据库连接初始化完成")
 
-	// 初始化 Telegram bot
-	telegram.InitTelegram()
-	logger.Info("Telegram 机器人初始化完成")
-
-	// 初始化模板
-	template.InitTemplates()
-	logger.Info("模板初始化完成")
+	// 初始化 R2 客户端
+	r2.InitR2()
+	logger.Info("Cloudflare R2 客户端初始化完成")
 
 	// 生成随机 session secret
-	var sessionSecret []byte
-	if global.AppConfig.Security.SessionSecret != "" {
-		sessionSecret = []byte(global.AppConfig.Security.SessionSecret)
-	} else {
-		sessionSecret = make([]byte, 32)
-		if _, err := rand.Read(sessionSecret); err != nil {
-			log.Fatal("Failed to generate session secret:", err)
-		}
-		// 将生成的密钥保存到配置中
-		global.AppConfig.Security.SessionSecret = base64.StdEncoding.EncodeToString(sessionSecret)
+	sessionSecret := make([]byte, 32)
+	if _, err := rand.Read(sessionSecret); err != nil {
+		log.Fatal("Failed to generate session secret:", err)
 	}
 
-	// 根据环境配置设置开发模式
-	global.IsDevelopment = global.AppConfig.Environment == "development"
-
-	// 修改 session 配置以支持开发环境
+	// 配置 session
 	global.Store = sessions.NewCookieStore(sessionSecret)
 	global.Store.Options = &sessions.Options{
 		Path:     "/",
 		MaxAge:   86400 * 30, // 30 天
 		HttpOnly: true,
-		Secure:   !global.IsDevelopment, // 在开发环境下允许 HTTP
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	}
 
@@ -86,16 +70,6 @@ func main() {
 
 	// 创建全局上传信号量
 	global.UploadSemaphore = make(chan struct{}, global.MaxConcurrentUploads)
-
-	// 启动缓存清理定时器
-	go func() {
-		cacheTicker := time.NewTicker(12 * time.Hour)
-		defer cacheTicker.Stop()
-
-		for range cacheTicker.C {
-			cleanURLCache()
-		}
-	}()
 
 	r := mux.NewRouter()
 
@@ -113,15 +87,6 @@ func main() {
 	r.HandleFunc("/logout", handlers.HandleLogout).Methods("GET")
 	r.HandleFunc("/admin", middleware.RequireAuth(handlers.HandleAdmin)).Methods("GET")
 	r.HandleFunc("/admin/toggle/{id}", middleware.RequireAuth(handlers.HandleToggleStatus)).Methods("POST")
-
-	// RESTful API 路由
-	apiRouter := r.PathPrefix("/api/v1").Subrouter()
-	apiRouter.HandleFunc("/upload", middleware.RequireAPIKey(handlers.HandleAPIUpload)).Methods("POST", "OPTIONS")
-	apiRouter.HandleFunc("/health", handlers.HandleAPIHealthCheck).Methods("GET")
-
-	// 状态监控和健康检查路由
-	r.HandleFunc("/health", handlers.HandleHealthCheck).Methods("GET")
-	r.HandleFunc("/status", handlers.HandleStatus).Methods("GET")
 
 	// 服务器配置
 	port := global.AppConfig.Site.Port
@@ -181,23 +146,4 @@ func main() {
 	}
 
 	logger.Info("服务已完全关闭，感谢使用")
-}
-
-// cleanURLCache 清理过期的URL缓存，防止内存泄漏
-func cleanURLCache() {
-	logger.Info("开始清理URL缓存...")
-	count := 0
-
-	global.URLCacheMux.Lock()
-	defer global.URLCacheMux.Unlock()
-
-	now := time.Now()
-	for key, cache := range global.URLCache {
-		if now.After(cache.ExpiresAt) {
-			delete(global.URLCache, key)
-			count++
-		}
-	}
-
-	logger.Info("URL缓存清理完成，共清理 %d 个过期项", count)
 }

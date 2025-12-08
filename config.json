@@ -1,7 +1,10 @@
 {
-    "telegram": {
-        "token": "1234567890:ABCDEFG_ab1-asdfghjkl12345",
-        "chatId": -123456789
+    "r2": {
+        "accountId": "your-cloudflare-account-id",
+        "accessKeyId": "your-r2-access-key-id",
+        "accessKeySecret": "your-r2-access-key-secret",
+        "bucketName": "your-bucket-name",
+        "publicUrl": "https://your-r2-public-url.com"
     },
     "admin": {
         "username": "nodeseeker",
@@ -27,11 +30,6 @@
             "window": "1m"
         },
         "allowedHosts": ["localhost", "127.0.0.1"],
-        "sessionSecret": "",
-        "statusKey": "nodeseek_status",
-        "apiKeys": ["your-secret-api-key-here"],
-        "requireAPIKey": false,
         "requireLoginForUpload": false
-    },
-    "environment": "production"
+    }
 }

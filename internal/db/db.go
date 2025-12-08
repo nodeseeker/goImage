@@ -41,7 +41,7 @@ func InitDB() {
 	_, err = global.DB.Exec(`
 	CREATE TABLE IF NOT EXISTS images (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		telegram_url TEXT NOT NULL,
+		r2_key TEXT NOT NULL,
 		proxy_url TEXT NOT NULL,
 		ip_address TEXT NOT NULL,
 		user_agent TEXT NOT NULL,
@@ -49,8 +49,7 @@ func InitDB() {
 		filename TEXT NOT NULL,
 		content_type TEXT NOT NULL,
 		is_active BOOLEAN DEFAULT 1,
-		view_count INTEGER DEFAULT 0,
-		file_id TEXT NOT NULL
+		view_count INTEGER DEFAULT 0
 	)`)
 
 	if err != nil {
@@ -63,7 +62,7 @@ func InitDB() {
     CREATE INDEX IF NOT EXISTS idx_proxy_url ON images(proxy_url);
     CREATE INDEX IF NOT EXISTS idx_upload_time ON images(upload_time);
     CREATE INDEX IF NOT EXISTS idx_is_active ON images(is_active);
-    CREATE INDEX IF NOT EXISTS idx_file_id ON images(file_id);
+    CREATE INDEX IF NOT EXISTS idx_r2_key ON images(r2_key);
     
     -- 复合索引，优化管理页面查询
     CREATE INDEX IF NOT EXISTS idx_active_time ON images(is_active, upload_time DESC);
