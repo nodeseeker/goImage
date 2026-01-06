@@ -64,7 +64,10 @@ func HandleHome(w http.ResponseWriter, r *http.Request) {
 		RequireLoginForUpload: global.AppConfig.Security.RequireLoginForUpload,
 		IsLoggedIn:            isLoggedIn,
 	}
-	tmpl.Execute(w, data)
+	if err := tmpl.Execute(w, data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 // HandleUpload 处理图片上传
@@ -106,7 +109,11 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	defer file.Close()
+	defer func() {
+		if cerr := file.Close(); cerr != nil {
+			log.Printf("[%s] failed to close uploaded file: %v", requestID, cerr)
+		}
+	}()
 
 	if header.Size > maxSize {
 		http.Error(w, "File size exceeds limit", http.StatusBadRequest)
@@ -119,7 +126,10 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	file.Seek(0, 0)
+	if _, err = file.Seek(0, 0); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	contentType := http.DetectContentType(buffer)
 	fileExt, ok := utils.GetFileExtension(contentType)
@@ -152,8 +162,16 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defer os.Remove(tempFile.Name())
-	defer tempFile.Close()
+	defer func() {
+		if cerr := os.Remove(tempFile.Name()); cerr != nil {
+			log.Printf("[%s] failed to remove temp file %s: %v", requestID, tempFile.Name(), cerr)
+		}
+	}()
+	defer func() {
+		if cerr := tempFile.Close(); cerr != nil {
+			log.Printf("[%s] failed to close temp file %s: %v", requestID, tempFile.Name(), cerr)
+		}
+	}()
 
 	_, err = io.Copy(tempFile, file)
 	if err != nil {
@@ -220,7 +238,11 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return err
 		}
-		defer stmt.Close()
+		defer func() {
+			if cerr := stmt.Close(); cerr != nil {
+				log.Printf("[%s] failed to close statement: %v", requestID, cerr)
+			}
+		}()
 
 		_, err = stmt.ExecContext(ctx,
 			telegramURL,
@@ -256,7 +278,10 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 		URL:      fullURL,
 		Filename: filename,
 	}
-	t.Execute(w, data)
+	if err := t.Execute(w, data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 func GetTelegramFileURL(fileID string) (string, error) {
@@ -318,7 +343,9 @@ func HandleImage(w http.ResponseWriter, r *http.Request) {
 
 		// 返回占位图片
 		w.WriteHeader(http.StatusOK)
-		w.Write(deletedImage)
+		if _, werr := w.Write(deletedImage); werr != nil {
+			log.Printf("failed to write deleted placeholder image: %v", werr)
+		}
 
 		// 记录访问已删除图片的日志
 		log.Printf("Served deleted placeholder for UUID: %s", uuid)
@@ -357,7 +384,9 @@ func HandleImage(w http.ResponseWriter, r *http.Request) {
 			}
 			defer func() {
 				if err != nil {
-					tx.Rollback()
+					if rerr := tx.Rollback(); rerr != nil {
+						log.Printf("failed to rollback transaction: %v", rerr)
+					}
 				}
 			}()
 
@@ -414,7 +443,11 @@ func HandleImage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			log.Printf("failed to close response body: %v", cerr)
+		}
+	}()
 
 	// 动态检测内容类型，特别是处理Telegram转换GIF为MP4的情况
 	actualContentType := contentType
@@ -520,7 +553,10 @@ func HandleLoginPage(w http.ResponseWriter, r *http.Request) {
 		Title:   utils.GetPageTitle("登录"),
 		Favicon: global.AppConfig.Site.Favicon,
 	}
-	t.Execute(w, data)
+	if err := t.Execute(w, data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 func HandleLogin(w http.ResponseWriter, r *http.Request) {
@@ -610,7 +646,11 @@ func HandleAdmin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			log.Printf("failed to close rows: %v", cerr)
+		}
+	}()
 
 	var images []ImageRecord
 	for rows.Next() {

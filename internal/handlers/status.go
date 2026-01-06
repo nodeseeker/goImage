@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"runtime"
 	"time"
@@ -64,7 +65,9 @@ func HandleStatus(w http.ResponseWriter, r *http.Request) {
 	status.MemStats.PauseTotalNs = memStats.PauseTotalNs
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(status)
+	if err := json.NewEncoder(w).Encode(status); err != nil {
+		log.Printf("failed to write status JSON: %v", err)
+	}
 }
 
 // HandleHealthCheck 健康检查接口
@@ -72,17 +75,21 @@ func HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
 	// 检查数据库连接
 	if err := global.DB.Ping(); err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]string{
+		if err := json.NewEncoder(w).Encode(map[string]string{
 			"status":  "error",
 			"message": "Database connection failed",
-		})
+		}); err != nil {
+			log.Printf("failed to write health error JSON: %v", err)
+		}
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"status":  "ok",
 		"message": "Service is healthy",
-	})
+	}); err != nil {
+		log.Printf("failed to write health ok JSON: %v", err)
+	}
 }

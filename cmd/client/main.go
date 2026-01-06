@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -32,7 +33,7 @@ type ImageResponse struct {
 
 // 设置版本信息
 const (
-	VERSION = "0.1.3"
+	VERSION = "0.1.4"
 )
 
 func main() {
@@ -89,13 +90,7 @@ func main() {
 
 	// 验证文件类型
 	ext := strings.ToLower(filepath.Ext(*filePath))
-	isValidExt := false
-	for _, allowedExt := range []string{".jpg", ".jpeg", ".png", ".gif", ".webp"} {
-		if ext == allowedExt {
-			isValidExt = true
-			break
-		}
-	}
+	isValidExt := slices.Contains([]string{".jpg", ".jpeg", ".png", ".gif", ".webp"}, ext)
 
 	if !isValidExt {
 		log.Fatalf("错误: 不支持的文件类型: %s，仅支持JPG/JPEG, PNG, GIF和WebP格式", ext)
@@ -140,7 +135,11 @@ func uploadImage(serverURL, imagePath, apiKey string, timeoutSeconds int, verbos
 	if err != nil {
 		return nil, fmt.Errorf("无法打开文件: %v", err)
 	}
-	defer file.Close()
+	defer func() {
+		if cerr := file.Close(); cerr != nil {
+			log.Printf("warning: failed to close file %s: %v", imagePath, cerr)
+		}
+	}()
 
 	// 创建multipart表单
 	var requestBody bytes.Buffer
@@ -200,7 +199,11 @@ func uploadImage(serverURL, imagePath, apiKey string, timeoutSeconds int, verbos
 	if err != nil {
 		return nil, fmt.Errorf("发送请求失败: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			log.Printf("warning: failed to close response body: %v", cerr)
+		}
+	}()
 
 	// 读取响应内容
 	body, err := io.ReadAll(resp.Body)

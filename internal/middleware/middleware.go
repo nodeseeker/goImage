@@ -101,7 +101,9 @@ func RequireAPIKey(next http.HandlerFunc) http.HandlerFunc {
 		if !validateAPIKey(apiKey) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"success":false,"message":"未授权：无效或缺失的API Key"}`))
+			if _, werr := w.Write([]byte(`{"success":false,"message":"未授权：无效或缺失的API Key"}`)); werr != nil {
+				log.Printf("failed to write unauthorized API key response: %v", werr)
+			}
 			log.Printf("未授权的API访问尝试 - IP: %s, Key: %s", utils.ValidateIPAddress(r.RemoteAddr), maskAPIKey(apiKey))
 			return
 		}
@@ -151,7 +153,9 @@ func RequireAuthForUpload(next http.HandlerFunc) http.HandlerFunc {
 		if !ok || !auth {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"success":false,"message":"请先登录后再上传"}`))
+			if _, werr := w.Write([]byte(`{"success":false,"message":"请先登录后再上传"}`)); werr != nil {
+				log.Printf("failed to write upload auth response: %v", werr)
+			}
 			return
 		}
 

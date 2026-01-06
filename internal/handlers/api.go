@@ -93,7 +93,11 @@ func HandleAPIUpload(w http.ResponseWriter, r *http.Request) {
 		sendJSONError(w, "无法读取上传文件", http.StatusBadRequest)
 		return
 	}
-	defer file.Close()
+	defer func() {
+		if cerr := file.Close(); cerr != nil {
+			logger.Error("[%s] failed to close uploaded file: %v", requestID, cerr)
+		}
+	}()
 
 	// 检查文件大小
 	if header.Size > maxSize {
@@ -108,7 +112,10 @@ func HandleAPIUpload(w http.ResponseWriter, r *http.Request) {
 		sendJSONError(w, "读取文件内容失败", http.StatusInternalServerError)
 		return
 	}
-	file.Seek(0, 0)
+	if _, err = file.Seek(0, 0); err != nil {
+		sendJSONError(w, "读取文件失败", http.StatusInternalServerError)
+		return
+	}
 
 	contentType := http.DetectContentType(buffer)
 	fileExt, ok := utils.GetFileExtension(contentType)
@@ -143,8 +150,16 @@ func HandleAPIUpload(w http.ResponseWriter, r *http.Request) {
 		sendJSONError(w, "创建临时文件失败", http.StatusInternalServerError)
 		return
 	}
-	defer os.Remove(tempFile.Name())
-	defer tempFile.Close()
+	defer func() {
+		if cerr := os.Remove(tempFile.Name()); cerr != nil {
+			logger.Error("[%s] failed to remove temp file %s: %v", requestID, tempFile.Name(), cerr)
+		}
+	}()
+	defer func() {
+		if cerr := tempFile.Close(); cerr != nil {
+			logger.Error("[%s] failed to close temp file %s: %v", requestID, tempFile.Name(), cerr)
+		}
+	}()
 
 	// 复制上传文件到临时文件
 	_, err = io.Copy(tempFile, file)
@@ -216,7 +231,11 @@ func HandleAPIUpload(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return err
 		}
-		defer stmt.Close()
+		defer func() {
+			if cerr := stmt.Close(); cerr != nil {
+				logger.Error("[%s] failed to close statement: %v", requestID, cerr)
+			}
+		}()
 
 		_, err = stmt.ExecContext(ctx,
 			telegramURL,
@@ -253,7 +272,9 @@ func HandleAPIUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.Error("[%s] failed to write JSON response: %v", requestID, err)
+	}
 }
 
 // sendJSONError 发送JSON格式的错误响应
@@ -264,7 +285,9 @@ func sendJSONError(w http.ResponseWriter, message string, statusCode int) {
 	}
 
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.Error("failed to write JSON error response: %v", err)
+	}
 }
 
 // HandleAPIHealthCheck 健康检查API
@@ -282,5 +305,7 @@ func HandleAPIHealthCheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.Error("failed to write health check response: %v", err)
+	}
 }

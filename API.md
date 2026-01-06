@@ -431,3 +431,34 @@ curl -X POST https://your-domain.com/api/v1/upload \
   -H "Authorization: Bearer your-api-key" \
   -F "image=@/path/to/image.jpg"
 ```
+
+
+## Status 检查接口
+GoImage 服务器提供了一个简单的状态检查接口，方便监控服务的运行状态。
+例如`https://img.example.com/status?key=goimage_status_key`，其中`goimage_status_key`是在配置文件中设置的状态检查密钥。
+
+具体信息如下：
+- **端点**: `/status`
+- **参数**:
+  - `key` (必需): 状态检查密钥，必须与配置文件中的 `status.checkKey` 相匹配
+- **方法**: `GET`
+- **响应格式**: JSON
+- **示例响应**:
+```json
+{
+  "status": "ok", # 服务状态，"ok"表示正常
+  "startTime": "2025-12-07T14:47:33.151149269+08:00", # 服务启动时间
+  "uptime": "725h46m49.280276368s", # 运行时间
+  "goVersion": "go1.25.5", # Go 语言版本
+  "numGoroutine": 8, # 当前 Goroutine 数量
+  "numCPU": 1, # CPU 核心数
+  "memStats": {
+    "alloc": 1607912, # 当前分配的内存字节数
+    "totalAlloc": 4917031680, # 自启动以来分配的总内存字节数
+    "sys": 22370568, # 从系统获取的内存字节数
+    "numGC": 20707, # 垃圾回收次数
+    "pauseTotalNs": 10890448805 # 垃圾回收暂停的总时间（纳秒）
+  },
+  "urlCacheSize": 208 # URL 缓存大小
+}
+```
