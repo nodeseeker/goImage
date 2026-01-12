@@ -55,7 +55,7 @@ func main() {
 	}
 
 	if *showVer {
-		fmt.Println("GoImage 图床服务 v0.1.8")
+		fmt.Println("GoImage 图床服务 v0.1.9")
 		os.Exit(0)
 	}
 
