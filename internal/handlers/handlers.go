@@ -537,7 +537,7 @@ func HandleLoginPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if auth, ok := session.Values["authenticated"].(bool); ok && auth {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin", http.StatusSeeOther)
 		return
 	}
 
@@ -589,7 +589,7 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin", http.StatusSeeOther)
 		return
 	}
 

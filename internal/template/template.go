@@ -3,6 +3,7 @@ package template
 import (
 	"html/template"
 	"log"
+	"path/filepath"
 	"sync"
 )
 
@@ -34,8 +35,8 @@ func InitTemplates() {
 
 	// 加载每个模板
 	for name, file := range templateFiles {
-		// 创建带有函数的模板
-		tmpl := template.New(file).Funcs(funcMap)
+		// 创建带有函数的模板，使用文件名作为模板名以避免空模板问题
+		tmpl := template.New(filepath.Base(file)).Funcs(funcMap)
 
 		// 解析模板文件
 		tmpl, err := tmpl.ParseFiles(file)
