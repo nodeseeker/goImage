@@ -416,6 +416,15 @@
             const requireLoginForUpload = {{.RequireLoginForUpload}};
             const isLoggedIn = {{.IsLoggedIn}};
 
+            // 将字节数格式化为可读文本
+            function formatBytes(bytes) {
+                if (bytes === 0) return '0 B';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+
             // 检查是否需要登录才能上传
             function checkLoginRequired() {
                 if (requireLoginForUpload && !isLoggedIn) {
@@ -458,7 +467,7 @@
                         this.value = ''; // 清除选择的文件
                         return;
                     }
-                    document.querySelector('.upload-text').innerHTML = '已选择: ' + file.name;
+                    document.querySelector('.upload-text').innerHTML = '已选择: ' + file.name + ' (' + formatBytes(file.size) + ')';
                 }
             });
 
@@ -502,7 +511,7 @@
                         return;
                     }
                     document.getElementById('fileInput').files = files;
-                    document.querySelector('.upload-text').innerHTML = '已选择: ' + file.name;
+                    document.querySelector('.upload-text').innerHTML = '已选择: ' + file.name + ' (' + formatBytes(file.size) + ')';
                 }
             });
 
@@ -566,8 +575,8 @@
                 const fileInput = document.getElementById('fileInput');
                 fileInput.files = dataTransfer.files;
                 
-                // 更新UI显示已选择的文件
-                document.querySelector('.upload-text').innerHTML = '已选择: ' + fileName;
+                // 更新UI显示已选择的文件并显示体积
+                document.querySelector('.upload-text').innerHTML = '已选择: ' + fileName + ' (' + formatBytes(renamedFile.size) + ')';
                 
                 // 闪烁上传区域，提示用户已添加文件
                 dropZone.style.transition = 'background-color 0.3s';
